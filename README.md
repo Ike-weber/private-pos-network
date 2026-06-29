@@ -302,12 +302,14 @@ cd ~/eth-pos/private-pos
 ```
 
 This script will:
-1. Generate `jwt.hex` if missing
-2. Generate `genesis.ssz` (consensus genesis with `--fork electra`)
-3. Generate `genesis.json` (execution genesis)
-4. Apply fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
-5. Initialize Geth nodes with the genesis block
-6. Start all 9 processes with proper peering
+1. Download Geth v1.17.4 automatically (with fallback sources) if missing
+2. Download Prysm v5.3.2 via `prysm.sh` (verification can be skipped if signatures are unavailable)
+3. Generate `jwt.hex` if missing
+4. Generate `genesis.ssz` (consensus genesis with `--fork electra`)
+5. Generate `genesis.json` (execution genesis)
+6. Apply fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
+7. Initialize Geth nodes with the genesis block
+8. Start all 9 processes with proper peering
 
 **Wait time:** ~3 minutes (genesis is set 3 minutes in the future so all processes start before chain genesis).
 
