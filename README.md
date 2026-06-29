@@ -303,13 +303,14 @@ cd ~/eth-pos/private-pos
 
 This script will:
 1. Download Geth v1.17.4 automatically (with fallback sources) if missing
-2. Download Prysm v5.3.2 via `prysm.sh` (verification can be skipped if signatures are unavailable)
+2. Download Prysm v5.3.2 binaries (`beacon-chain`, `validator`, `prysmctl`) automatically if missing
 3. Generate `jwt.hex` if missing
-4. Generate `genesis.ssz` (consensus genesis with `--fork electra`)
-5. Generate `genesis.json` (execution genesis)
-6. Apply fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
-7. Initialize Geth nodes with the genesis block
-8. Start all 9 processes with proper peering
+4. Remove any stale `genesis.ssz`/`genesis.json` from previous runs
+5. Generate `genesis.ssz` (consensus genesis with `--fork electra`)
+6. Generate `genesis.json` (execution genesis)
+7. Apply fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
+8. Initialize Geth nodes with the genesis block
+9. Start all 9 processes with proper peering
 
 **Wait time:** ~3 minutes (genesis is set 3 minutes in the future so all processes start before chain genesis).
 
@@ -1043,6 +1044,12 @@ Then run `./run-pos.sh` for full reset. The chain will start with earlier forks 
 ---
 
 ## Changelog
+
+### v1.3.0 — 2026-06-29
+- **Auto-download Prysm v5.3.2 binaries** (`beacon-chain`, `validator`, `prysmctl`) on first run
+- **Remove stale `genesis.ssz`/`genesis.json`** before regenerating
+- **Create `logs/` directory** automatically
+- **Removed pre-built binary artifacts** from repo (Geth and Prysm are downloaded on demand)
 
 ### v1.2.0 — 2026-06-29
 - **Upgraded Geth to v1.17.4** (latest stable)

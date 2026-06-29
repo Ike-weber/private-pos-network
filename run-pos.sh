@@ -47,6 +47,24 @@ if [ ! -x "$GETH_BIN" ]; then
   echo "Geth ${GETH_VERSION} ready"
 fi
 
+# ── 0b. ENSURE PRYSM BINARIES ARE AVAILABLE ──────────────────────
+PRYSM_VERSION="v5.3.2"
+if [ ! -x "./prysmctl-${PRYSM_VERSION}" ]; then
+  echo "Downloading Prysm ${PRYSM_VERSION} binaries..."
+  mkdir -p dist
+  for bin in beacon-chain validator prysmctl; do
+    FILE="dist/${bin}-${PRYSM_VERSION}-linux-amd64"
+    if [ ! -x "$FILE" ]; then
+      URL="https://github.com/OffchainLabs/prysm/releases/download/${PRYSM_VERSION}/${bin}-${PRYSM_VERSION}-linux-amd64"
+      echo "  $URL"
+      curl -L --fail --max-time 180 "$URL" -o "$FILE"
+      chmod +x "$FILE"
+    fi
+    ln -sf "$FILE" "./${bin}-${PRYSM_VERSION}"
+  done
+  echo "Prysm ${PRYSM_VERSION} ready"
+fi
+
 # ── 1. KILL EVERYTHING ──────────────────────────────────────────
 pkill -9 -f geth || true
 pkill -9 -f prysm.sh || true
@@ -58,6 +76,8 @@ pgrep -f "geth|prysm.sh|beacon-chain|validator" && echo "STALE PROCESSES!" && ex
 # ── 2. WIPE ALL DATA ────────────────────────────────────────────
 rm -rf beacon1/* beacon2/* beacon3/*
 rm -rf validator1/* validator2/* validator3/*
+rm -f genesis.ssz genesis.json
+mkdir -p logs
 for node in node1 node2 node3; do
   rm -rf $node/geth
   mkdir -p $node/geth
