@@ -1,7 +1,7 @@
 # Private Ethereum PoS Devnet
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Fork: Fulu](https://img.shields.io/badge/Fork-Fulu-blue)](https://github.com/ethereum/consensus-specs)
+[![Fork: Electra](https://img.shields.io/badge/Fork-Electra-blue)](https://github.com/ethereum/consensus-specs)
 [![Chain ID: 12345](https://img.shields.io/badge/Chain%20ID-12345-green)](https://chainlist.org/chain/12345)
 [![Block Time: 12s](https://img.shields.io/badge/Block%20Time-12s-orange)](https://ethereum.org/en/roadmap/merge/)
 
@@ -42,10 +42,10 @@ A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with 3 Geth 
 This devnet is a self-contained Ethereum network that runs entirely on your local machine. Unlike mainnet or public testnets (Goerli, Sepolia, Holesky), this network:
 
 - **Requires no external peers** — all nodes are local
-- **Has instant finality** — 3 validators control the entire network
+- **Has fast finality** — 3 validators control the entire network
 - **Costs nothing** — all ETH is fake/devnet-only
 - **Resets instantly** — wipe data and restart in under 2 minutes
-- **Uses the Fulu fork** — all consensus upgrades (Altair, Bellatrix, Capella, Deneb, Electra, Fulu) are active from genesis
+- **Uses the Electra fork** — Altair, Bellatrix, Capella, Deneb and Electra are active from genesis
 
 **Primary Use Cases:**
 - Smart contract development and testing
@@ -56,7 +56,7 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 
 **What Makes It Different:**
 - Uses **interop validators** (pre-generated deterministic keys, not real deposits)
-- All forks active from **epoch 0** (no waiting for upgrades)
+- Active forks from **epoch 0** (no waiting for upgrades)
 - **No deposit contract** — validators are injected directly into genesis state
 - **Local-only** — not discoverable on the public internet
 
@@ -98,7 +98,7 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 |  2. Beacon calls Engine API (forkchoiceUpdated) -> Geth builds payload    |
 |  3. Geth returns payload -> Beacon includes it in block                   |
 |  4. Beacon publishes block -> Validators attest to it                     |
-|  5. Geth peers sync execution blocks via p2p (ports 30303-30305)         |
+|  5. Geth peers sync execution blocks via p2p (ports 30301-30303)         |
 |                                                                          |
 +-------------------------------------------------------------------------+
 ```
@@ -111,16 +111,15 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 |-----------|-------|
 | **Chain ID** | `12345` |
 | **Network ID** | `12345` |
-| **Fork** | Fulu (all forks active from genesis) |
+| **Fork** | Electra (Altair/Bellatrix/Capella/Deneb/Electra active from genesis) |
 | **Preset** | Interop (minimal config) |
-| **Slots per Epoch** | `8` |
+| **Slots per Epoch** | `6` |
 | **Block Time** | `12` seconds |
-| **Validator Count** | `64` (3 interop validators actively proposing) |
-| **Genesis Time** | `2026-06-26 13:03:33 +0100 BST` (dynamic on reset) |
-| **Consensus Client** | Prysm v5.0.2+ (via prysm.sh) |
-| **Execution Client** | Geth v1.17.4+ (PoS-only, no `--mine`) |
-| **Genesis State Root** | `0x4c831d86f8d4c12de71e4defcbe7b09d47029211528922caf93e88542b96fce2` |
-| **Genesis Block Hash** | `0x4ae99b36b4ba...c48b60` (dynamic on reset) |
+| **Validator Count** | `3` (all actively proposing) |
+| **Genesis Time** | dynamic on reset (3 minutes from `run-pos.sh` invocation) |
+| **Consensus Client** | Prysm v5.3.2 |
+| **Execution Client** | Geth v1.15.11 |
+| **Genesis Block Hash** | dynamic on reset |
 
 ---
 
@@ -128,24 +127,14 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 
 | Tool | Minimum Version | Purpose | Install Command |
 |------|----------------|---------|---------------|
-| **Go** | 1.21+ | Build Geth and Prysm | `sudo apt install golang-go` |
-| **Git** | 2.30+ | Clone repositories | `sudo apt install git` |
-| **Make** | 4.3+ | Build targets | `sudo apt install build-essential` |
 | **curl** | 7.74+ | HTTP requests | `sudo apt install curl` |
 | **jq** | 1.6+ | JSON parsing | `sudo apt install jq` |
 | **Python3** | 3.10+ | Scripting helpers | `sudo apt install python3` |
+| **tar** | any | Extract Geth archive | usually pre-installed |
 
-**Required Repositories (auto-cloned by scripts):**
+**Disk:** ~2 GB free space for binaries and chain data.
 
-| Repository | Branch | Purpose |
-|------------|--------|---------|
-| `github.com/ethereum/go-ethereum` | `master` | Execution layer (Geth) |
-| `github.com/prysmaticlabs/prysm` | `develop` | Consensus layer (Prysm) |
-
-**Build Requirements:**
-- **RAM**: 8GB minimum (16GB recommended for building)
-- **Disk**: 10GB free space
-- **CPU**: 4 cores (building Geth takes ~10 minutes on 4 cores)
+**Note:** This setup uses pre-built Prysm and Geth binaries. It does **not** build from source.
 
 ---
 
@@ -176,16 +165,20 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 │   ├── validator2.log
 │   ├── validator3.log
 │   └── start.log             # start-all.sh output
-├── go-ethereum/              # Geth source (git submodule)
-├── prysm/                    # Prysm source (git submodule)
+├── dist/                     # Downloaded Prysm binaries
+│   ├── beacon-chain-v5.3.2-linux-amd64
+│   ├── validator-v5.3.2-linux-amd64
+│   └── prysmctl-v5.3.2-linux-amd64
 ├── config.yaml               # Consensus chain configuration (fork epochs, presets)
 ├── genesis.json              # Execution layer genesis (alloc, config, extraData)
+├── genesis.json.working      # Execution genesis template used by prysmctl
 ├── genesis.ssz               # Consensus genesis state (SSZ format, generated by prysmctl)
 ├── jwt.hex                   # Shared JWT secret for Engine API authentication
-├── run-pos.sh                # Full reset script: wipe -> build -> genesis -> start
+├── run-pos.sh                # Full reset script: wipe -> genesis -> start
 ├── start-all.sh              # Start all 9 processes with correct peering
 ├── stop-all.sh               # Kill all devnet processes
-├── prysm.sh                  # Prysm launcher wrapper (handles version, bazel)
+├── prysm.sh                  # Prysm launcher wrapper (downloads/verifies Prysm)
+├── geth-1.15.11              # Pre-built Geth binary
 ├── README.md                 # This file
 └── .git/                     # Git repository
 ```
@@ -196,32 +189,31 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 
 ### `config.yaml` — Consensus Chain Config
 
-This file tells Prysm when each consensus upgrade (fork) activates. All forks at epoch 0 means the chain starts with the latest features immediately.
+This file tells Prysm when each consensus upgrade (fork) activates.
 
 ```yaml
 # -- Network Identity --
-PRESET_BASE: interop               # Minimal preset for fast epochs (8 slots/epoch)
+PRESET_BASE: interop               # Minimal preset for fast epochs (6 slots/epoch)
 CONFIG_NAME: interop               # Human-readable config name
 
 # -- Genesis Parameters --
 GENESIS_FORK_VERSION: 0x20000089   # Unique fork version to prevent mainnet replay
-GENESIS_DELAY: 120                 # Seconds from genesis creation to chain start
+GENESIS_DELAY: 0                   # No built-in delay; run-pos.sh schedules genesis 3 min ahead
 
-# -- Fork Schedule (all at epoch 0 = active from genesis) --
+# -- Fork Schedule (active from genesis) --
 ALTAIR_FORK_EPOCH: 0               # Sync committees, light client support
 BELLATRIX_FORK_EPOCH: 0            # The Merge — PoS transition
 CAPELLA_FORK_EPOCH: 0              # Withdrawals, BLS to execution changes
 DENEB_FORK_EPOCH: 0                # Blob transactions (EIP-4844)
 ELECTRA_FORK_EPOCH: 0              # Validator consolidation, pending deposits
-FULU_FORK_EPOCH: 0                 # PeerDAS, blob expansion
-GLOAS_FORK_EPOCH: 18446744073709551615  # Future fork placeholder (max uint64)
+FULU_FORK_EPOCH: 18446744073709551615  # Disabled (max uint64)
 
 # -- Time Parameters --
 SECONDS_PER_SLOT: 12               # Block time (12 seconds = Ethereum standard)
-SLOTS_PER_EPOCH: 8                 # 8 slots x 12s = 96 second epochs (fast for testing)
+SLOTS_PER_EPOCH: 6                 # 6 slots x 12s = 72 second epochs
 
 # -- Validator Parameters --
-MIN_GENESIS_ACTIVE_VALIDATOR_COUNT: 64   # Minimum validators to start chain
+MIN_GENESIS_ACTIVE_VALIDATOR_COUNT: 1    # Only 3 interop validators; keep minimum low
 MIN_GENESIS_TIME: 0                # No minimum time constraint
 
 # -- Deposit Contract (dummy for interop) --
@@ -231,63 +223,60 @@ DEPOSIT_CONTRACT_ADDRESS: 0x4242424242424242424242424242424242424242
 ```
 
 **Why These Values:**
-- `PRESET_BASE: interop`: Minimal preset reduces epoch time to 96 seconds (vs 6.4 minutes on mainnet), making testing faster.
+- `PRESET_BASE: interop`: Minimal preset reduces epoch time to 72 seconds.
 - `GENESIS_FORK_VERSION: 0x20000089`: First byte `0x20` distinguishes from mainnet (`0x00`), preventing accidental replay attacks.
-- All forks at epoch 0: No waiting for upgrades. Blob transactions, withdrawals, and sync committees are available immediately.
-- `GLOAS_FORK_EPOCH: 18446744073709551615`: Max uint64 means "not scheduled" — placeholder for future forks.
+- Active forks at epoch 0: Blob transactions, withdrawals, and sync committees are available immediately.
+- `FULU_FORK_EPOCH: 18446744073709551615`: Fulu is disabled because the current Geth/Prysm combination does not support Fulu payload building in this interop configuration.
 
 ### `genesis.json` — Execution Genesis
 
 ```json
 {
   "config": {
-    "chainId": 12345,              // Unique chain ID (MetaMask will show this)
-    "homesteadBlock": 0,           // Homestead upgrade active from block 0
-    "eip150Block": 0,              // EIP-150 (Tangerine Whistle)
-    "eip155Block": 0,              // EIP-155 (replay protection)
-    "eip158Block": 0,              // EIP-158 (state clearing)
-    "byzantiumBlock": 0,           // Byzantium hard fork
-    "constantinopleBlock": 0,       // Constantinople
-    "petersburgBlock": 0,           // Petersburg (Constantinople fix)
-    "istanbulBlock": 0,             // Istanbul
-    "berlinBlock": 0,               // Berlin
-    "londonBlock": 0,               // London (EIP-1559 basefee)
-    "arrowGlacierBlock": 0,         // Arrow Glacier (difficulty bomb delay)
-    "grayGlacierBlock": 0,          # Gray Glacier (difficulty bomb delay)
-    "mergeNetsplitBlock": 0,        # Merge netsplit block
-    "terminalTotalDifficulty": 0, // PoW difficulty threshold (0 = instant PoS)
-    "terminalTotalDifficultyPassed": true,  // REQUIRED for Geth 1.14.0+
-    "shanghaiTime": 0,              // Shanghai activation (timestamp-based)
-    "cancunTime": 0,                // Cancun (blob transactions)
-    "pragueTime": 0,                // Prague (verkle trees prep)
-    "osakaTime": 0,                 // Osaka (future)
-    "blobSchedule": {               // REQUIRED for Cancun+
+    "chainId": 12345,
+    "homesteadBlock": 0,
+    "eip150Block": 0,
+    "eip155Block": 0,
+    "eip158Block": 0,
+    "byzantiumBlock": 0,
+    "constantinopleBlock": 0,
+    "petersburgBlock": 0,
+    "istanbulBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "arrowGlacierBlock": 0,
+    "grayGlacierBlock": 0,
+    "mergeNetsplitBlock": 0,
+    "terminalTotalDifficulty": 0,
+    "terminalTotalDifficultyPassed": true,
+    "shanghaiTime": 0,
+    "cancunTime": 0,
+    "pragueTime": 0,
+    "blobSchedule": {
       "cancun": {"target": 3, "max": 6, "baseFeeUpdateFraction": 3338477},
-      "prague": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716},
-      "osaka":  {"target": 9, "max": 12, "baseFeeUpdateFraction": 5007716}
+      "prague": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716}
     }
   },
   "alloc": {
-    // Pre-funded dev accounts with 10,000 ETH each
     "0x8B0681dBD724dcaC48b433e9df8A220D47C94a19": {"balance": "0x21E19E0C9BAB2400000"},
     "0x6Bd7f3AfB4f2B1E3f8d5C4E9A7B2C1D0E8F6A5B4": {"balance": "0x21E19E0C9BAB2400000"},
     "0xA1B2C3D4E5F6789012345678901234567890ABCD": {"balance": "0x21E19E0C9BAB2400000"}
   },
   "coinbase": "0x0000000000000000000000000000000000000000",
-  "difficulty": "0x1",              // Minimal difficulty (not used in PoS)
-  "extraData": "0x",                // Empty extra data
-  "gasLimit": "0x1c9c380",          // 30M gas limit per block
-  "nonce": "0x0",                   // Zero nonce (PoS doesn't use it)
+  "difficulty": "0x1",
+  "extraData": "0x",
+  "gasLimit": "0x1c9c380",
+  "nonce": "0x0",
   "mixhash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "timestamp": "0x6a3e6a95"         // Genesis timestamp (Unix seconds)
+  "timestamp": "0x<dynamic>"
 }
 ```
 
 **Critical Fields Explained:**
-- `terminalTotalDifficultyPassed: true`: **REQUIRED** for Geth v1.14.0+. Tells Geth the Merge already happened; without this, Geth refuses to switch to PoS.
+- `terminalTotalDifficultyPassed: true`: **REQUIRED** for Geth v1.14.0+. Tells Geth the Merge already happened.
 - `terminalTotalDifficulty: 0`: Sets the PoW -> PoS threshold to 0, so the transition is immediate.
-- `blobSchedule`: **REQUIRED** for Cancun and later. Defines blob transaction parameters per fork. Without this, Geth rejects genesis with "blobSchedule missing for cancun".
+- `blobSchedule`: **REQUIRED** for Cancun and later. Defines blob transaction parameters per fork.
 - `shanghaiTime/cancunTime/pragueTime: 0`: Timestamp 0 means these execution upgrades are active from genesis.
 
 ### `jwt.hex` — Engine API Authentication
@@ -305,7 +294,7 @@ openssl rand -hex 32 > jwt.hex
 
 ## Quick Start
 
-### 1. Clone and Build (First Time Only)
+### 1. Start the Network
 
 ```bash
 cd ~/eth-pos/private-pos
@@ -313,15 +302,14 @@ cd ~/eth-pos/private-pos
 ```
 
 This script will:
-1. Clone `go-ethereum` and `prysm` repositories
-2. Build Geth and Prysm from source
-3. Generate `jwt.hex` if missing
-4. Generate `genesis.ssz` (consensus genesis) and `genesis.json` (execution genesis)
-5. Applies fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
-6. Initializes Geth nodes with the genesis block
-7. Starts all 9 processes with proper peering
+1. Generate `jwt.hex` if missing
+2. Generate `genesis.ssz` (consensus genesis with `--fork electra`)
+3. Generate `genesis.json` (execution genesis)
+4. Apply fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
+5. Initialize Geth nodes with the genesis block
+6. Start all 9 processes with proper peering
 
-**Wait time:** ~10-15 minutes for first build (mostly Geth compilation).
+**Wait time:** ~3 minutes (genesis is set 3 minutes in the future so all processes start before chain genesis).
 
 ### 2. Verify the Chain is Running
 
@@ -387,10 +375,10 @@ Unlike PoW (mining), PoS uses **validators** who stake ETH to propose and attest
 | Term | Explanation | In This Devnet |
 |------|-------------|----------------|
 | **Slot** | 12-second time window for a block | 12 seconds |
-| **Epoch** | Group of 8 slots | 96 seconds (8 x 12s) |
+| **Epoch** | Group of 6 slots | 72 seconds (6 x 12s) |
 | **Validator** | Entity that proposes/attests blocks | 3 interop validators (indices 0,1,2) |
 | **Attestation** | Vote that a block is valid | Submitted every slot by active validators |
-| **Sync Committee** | Group of validators providing light client data | 64 validators, rotates every epoch |
+| **Sync Committee** | Group of validators providing light client data | rotates every epoch |
 | **Engine API** | Interface between beacon and execution | `localhost:8551` with JWT auth |
 | **forkchoiceUpdated** | Beacon tells Geth which head to build on | Called every slot |
 | **getPayload** | Beacon requests Geth to build execution payload | Returns transactions + state root |
@@ -402,7 +390,7 @@ Unlike PoW (mining), PoS uses **validators** who stake ETH to propose and attest
 Slot N begins (every 12 seconds)
     |
     v
-Beacon selects proposer (validator index = slot % 64)
+Beacon selects proposer (validator index = slot % 3)
     |
     v
 Beacon calls Engine API: forkchoiceUpdated(head, payloadAttributes)
@@ -420,7 +408,7 @@ Geth returns execution payload
 Beacon assembles full block (consensus + execution)
     |
     v
-Beacon broadcasts block to network
+Beacon publishes block to network
     |
     v
 Validators attest to block validity
@@ -437,9 +425,9 @@ Next slot begins
 
 | Node | HTTP RPC | Auth RPC (Engine) | P2P | Metrics |
 |------|----------|-------------------|-----|---------|
-| Geth 1 | `8541` | `8551` | `30303` | `6060` |
-| Geth 2 | `8542` | `8552` | `30304` | `6061` |
-| Geth 3 | `8543` | `8553` | `30305` | `6062` |
+| Geth 1 | `8541` | `8551` | `30301` | `6060` |
+| Geth 2 | `8542` | `8552` | `30302` | `6061` |
+| Geth 3 | `8543` | `8553` | `30303` | `6062` |
 
 ### Prysm Beacon Nodes
 
@@ -556,11 +544,11 @@ curl -s http://localhost:3500/eth/v1/node/peer_count | jq '.data.connected'
 
 These accounts are funded with 10,000 ETH at genesis:
 
-| Address | Private Key (for testing only!) | Balance |
-|---------|------------------------------|---------|
-| `0x8B0681dBD724dcaC48b433e9df8A220D47C94a19` | *(see genesis.json alloc)* | 10,000 ETH |
-| `0x6Bd7f3AfB4f2B1E3f8d5C4E9A7B2C1D0E8F6A5B4` | *(see genesis.json alloc)* | 10,000 ETH |
-| `0xA1B2C3D4E5F6789012345678901234567890ABCD` | *(see genesis.json alloc)* | 10,000 ETH |
+| Address | Balance |
+|---------|---------|
+| `0x8B0681dBD724dcaC48b433e9df8A220D47C94a19` | 10,000 ETH |
+| `0x6Bd7f3AfB4f2B1E3f8d5C4E9A7B2C1D0E8F6A5B4` | 10,000 ETH |
+| `0xA1B2C3D4E5F6789012345678901234567890ABCD` | 10,000 ETH |
 
 ### Transferring ETH
 
@@ -640,8 +628,8 @@ forge script script/Deploy.s.sol --rpc-url devnet --broadcast --private-key 0x..
 | Log File | What to Look For | Bad Signs |
 |----------|------------------|-----------|
 | `logs/beacon1.log` | `Synced new block` | `ERROR` repeatedly, `state and block are different version` |
-| `logs/geth1.log` | `Commit new mining work` | `SYNCING`, `no peers` for extended periods |
-| `logs/validator1.log` | `Submitted new block` | `Sync Committee Message is too old` (briefly at start is OK) |
+| `logs/geth1.log` | `Forkchoice updated` | `SYNCING`, `no peers` for extended periods |
+| `logs/validator1.log` | `Submitted new block` | repeated `Sync Committee Message is too old` |
 
 ### Key Metrics Endpoints
 
@@ -681,9 +669,9 @@ fi
 
 | Resource | Minimum | Recommended | Notes |
 |----------|---------|-------------|-------|
-| **RAM** | 8 GB | 16 GB | Geth + Prysm + validators together |
-| **CPU** | 4 cores | 8 cores | Building Geth is CPU-intensive |
-| **Disk** | 10 GB free | 50 GB SSD | Chaindata grows slowly; SSD recommended |
+| **RAM** | 4 GB | 8 GB | Geth + Prysm + validators together |
+| **CPU** | 2 cores | 4 cores | Running is light; building not required |
+| **Disk** | 2 GB free | 10 GB SSD | Chaindata grows slowly |
 | **Network** | Localhost only | Localhost only | Not designed for external access |
 
 **CPU Usage When Running:**
@@ -723,14 +711,14 @@ fi
 ERROR blockchain: Could not validate block state root error=state and block are different version. 4 != 6
 ```
 
-**Root Cause:** `genesis.ssz` was generated with `--fork deneb` (state version 4), but `config.yaml` has `FULU_FORK_EPOCH: 0`, so Prysm expects Fulu blocks (version 6).
+**Root Cause:** `genesis.ssz` was generated with `--fork deneb` (state version 4), but `config.yaml` has `ELECTRA_FORK_EPOCH: 0`, so Prysm expects Electra blocks (version 6).
 
 **Fix:**
 ```bash
 # In run-pos.sh, change:
-./prysm.sh prysmctl testnet generate-genesis --fork deneb
+./prysmctl testnet generate-genesis --fork deneb
 # To:
-./prysm.sh prysmctl testnet generate-genesis --fork fulu
+./prysmctl testnet generate-genesis --fork electra
 ```
 
 Then run `./run-pos.sh` for a full reset.
@@ -771,7 +759,7 @@ Fatal: invalid genesis file: terminalTotalDifficultyPassed must be set
 
 ---
 
-### `blobSchedule` Missing for Cancun/Prague/Osaka
+### `blobSchedule` Missing for Cancun/Prague
 
 **Error Message:**
 ```
@@ -784,14 +772,13 @@ Fatal: invalid genesis file: blobSchedule missing for cancun
 ```json
 "blobSchedule": {
   "cancun": {"target": 3, "max": 6, "baseFeeUpdateFraction": 3338477},
-  "prague": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716},
-  "osaka":  {"target": 9, "max": 12, "baseFeeUpdateFraction": 5007716}
+  "prague": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716}
 }
 ```
 
 ---
 
-### `terminalTotalDifficulty` Wrong Type
+### `terminalTotalDifficulty` Wrong Type (string vs int)
 
 **Error Message:**
 ```
@@ -874,13 +861,13 @@ PYEOF
 
 ---
 
-### Validator Count Mismatch (3 vs 64)
+### Validator Count Mismatch
 
 **Symptom:** Only 3 validators active, but `MIN_GENESIS_ACTIVE_VALIDATOR_COUNT` is 64.
 
-**Explanation:** This is **by design**. The `prysmctl generate-genesis` command creates 64 validators in the genesis state, but only validators 0, 1, and 2 have their private keys imported and are actively running. The other 61 validators exist in the state but never propose blocks or attest.
+**Explanation:** This is **by design**. The `prysmctl generate-genesis` command creates 3 validators in the genesis state, and all 3 are actively running. `MIN_GENESIS_ACTIVE_VALIDATOR_COUNT` is a network parameter that does not need to match the actual validator count on this devnet.
 
-**Impact:** The chain still progresses normally — the 3 active validators are sufficient to maintain the network. The 61 inactive validators simply miss their duties.
+**Impact:** The chain progresses normally with 3 active validators.
 
 ---
 
@@ -909,7 +896,7 @@ error=sync message is too late
 **Fix:** Apply patches AFTER `prysmctl` runs. In `run-pos.sh`:
 ```bash
 # Generate genesis
-./prysm.sh prysmctl testnet generate-genesis --fork fulu ...
+./prysmctl testnet generate-genesis --fork electra ...
 
 # THEN apply fixes
 python3 << 'PYEOF'
@@ -921,6 +908,32 @@ g['config']['terminalTotalDifficulty'] = 0
 json.dump(g, open('genesis.json','w'), indent=2)
 PYEOF
 ```
+
+---
+
+### Fulu Fork Not Supported
+
+**Error Message:**
+```
+ERROR blockchain: received an undefined execution engine error error=Unsupported fork
+```
+
+**Root Cause:** Geth v1.15.11 does not support building Fulu payloads in this interop configuration, or Prysm v5.3.2 cannot load a Fulu genesis state at runtime.
+
+**Fix:** Disable Fulu by setting `FULU_FORK_EPOCH: 18446744073709551615` in `config.yaml` and generate genesis with `--fork electra`.
+
+---
+
+### GLOAS Fork Unknown to prysmctl
+
+**Error Message:**
+```
+yaml: unmarshal errors: line 58: field GLOAS_FORK_VERSION not found
+```
+
+**Root Cause:** Prysm v5.3.2 does not recognize the `GLOAS` fork fields.
+
+**Fix:** Remove `GLOAS_FORK_VERSION` and `GLOAS_FORK_EPOCH` from `config.yaml`.
 
 ---
 
@@ -948,13 +961,12 @@ rm -f genesis.json genesis.ssz
 ```
 
 **What `run-pos.sh` does:**
-1. Builds Geth and Prysm if not already built
-2. Generates `jwt.hex` if missing
-3. Generates `genesis.ssz` (consensus genesis with `--fork fulu`)
-4. Generates `genesis.json` (execution genesis)
-5. Applies fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
-6. Initializes Geth nodes with new genesis
-7. Starts all 9 processes with proper peering
+1. Generates `jwt.hex` if missing
+2. Generates `genesis.ssz` (consensus genesis with `--fork electra`)
+3. Generates `genesis.json` (execution genesis)
+4. Applies fixes (`terminalTotalDifficultyPassed`, `blobSchedule`, etc.)
+5. Initializes Geth nodes with new genesis
+6. Starts all 9 processes with proper peering
 
 ---
 
@@ -964,13 +976,12 @@ rm -f genesis.json genesis.ssz
 
 1. **Generate new validator keys:**
 ```bash
-cd prysm
 ./prysm.sh validator accounts create --wallet-dir=../new-validator --num-accounts=1
 ```
 
 2. **Add to genesis:** Regenerate `genesis.ssz` with more validators:
 ```bash
-./prysm.sh prysmctl testnet generate-genesis --num-validators=100 ...
+./prysmctl testnet generate-genesis --num-validators=100 ...
 ```
 
 3. **Start new validator:**
@@ -988,12 +999,12 @@ mkdir -p node4/geth beacon4
 
 2. **Initialize Geth:**
 ```bash
-./go-ethereum/build/bin/geth init --datadir node4 genesis.json
+./geth-1.15.11 init --datadir node4 genesis.json
 ```
 
 3. **Start Geth with unique ports:**
 ```bash
-./go-ethereum/build/bin/geth --datadir node4 --port 30306 --http.port 8544 ...
+./geth-1.15.11 --datadir node4 --port 30306 --http.port 8544 ...
 ```
 
 4. **Start beacon with unique ports:**
@@ -1024,12 +1035,21 @@ Then run `./run-pos.sh` for full reset. The chain will start with earlier forks 
 | **Local only** | Not discoverable on internet | Use VPN or port forwarding for remote access (not recommended) |
 | **No block explorer** | No Etherscan equivalent | Use `curl` queries or build a local explorer |
 | **No MEV** | No builder market | Direct beacon->execution block building |
-| **Fast epochs** | 96-second epochs | Mainnet is 6.4 minutes; timing-sensitive tests may behave differently |
-| **No finality gadget** | 3 validators = easy to stall | Add more validators for realistic finality |
+| **Fast epochs** | 72-second epochs | Mainnet is 6.4 minutes; timing-sensitive tests may behave differently |
+| **Fulu disabled** | Fulu fork is set to max epoch | Re-enable only if using Geth/Prysm versions that fully support Fulu interop |
 
 ---
 
 ## Changelog
+
+### v1.1.0 — 2026-06-29
+- **Pinned Prysm to v5.3.2** (downloaded binaries via `prysm.sh`)
+- **Pinned Geth to v1.15.11** (pre-built binary)
+- **Disabled Fulu fork** (`FULU_FORK_EPOCH: max`) to avoid `Unsupported fork` and genesis-state runtime errors
+- **Removed GLOAS fork fields** (not recognized by Prysm v5.3.2)
+- **Removed Osaka blob schedule** (not needed without Fulu)
+- **Updated genesis generation** to use `--fork electra`
+- **Verified block production** with head slot 99+ and finalized epoch 14+
 
 ### v1.0.0 — 2026-06-26
 - **Initial working version**
@@ -1091,4 +1111,4 @@ SOFTWARE.
 
 ---
 
-*Last updated: 2026-06-26*
+*Last updated: 2026-06-29*

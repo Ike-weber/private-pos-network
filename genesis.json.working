@@ -11,10 +11,10 @@
     "istanbulBlock": 0,
     "berlinBlock": 0,
     "londonBlock": 0,
-    "shanghaiTime": 1782762614,
-    "cancunTime": 1782762614,
-    "pragueTime": 1782762614,
+    "shanghaiTime": 0,
+    "cancunTime": 0,
     "terminalTotalDifficulty": 0,
+    "terminalTotalDifficultyPassed": true,
     "depositContractAddress": "0x4242424242424242424242424242424242424242",
     "blobSchedule": {
       "cancun": {
@@ -27,11 +27,10 @@
         "max": 9,
         "baseFeeUpdateFraction": 5007716
       }
-    },
-    "terminalTotalDifficultyPassed": true
+    }
   },
   "nonce": "0x0",
-  "timestamp": "0x6a42cc76",
+  "timestamp": "0x0",
   "extraData": "0x",
   "gasLimit": "0x1c9c380",
   "difficulty": "0x0",
@@ -56,5 +55,6 @@
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "baseFeePerGas": "0x3b9aca00",
   "excessBlobGas": "0x0",
-  "blobGasUsed": "0x0"
+  "blobGasUsed": "0x0",
+  "slotNumber": null
 }
