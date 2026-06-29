@@ -5,14 +5,14 @@ cd "$(dirname "$0")"
 export USE_PRYSM_VERSION=v5.3.2
 
 # ── 0. DOWNLOAD GETH IF MISSING ─────────────────────────────────
-if [ ! -x ./geth-1.15.11 ]; then
-  echo "Downloading Geth 1.15.11..."
-  curl -L https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.15.11-36b2371c.tar.gz -o geth-1.15.11.tar.gz
-  tar xzf geth-1.15.11.tar.gz
-  mv geth-linux-amd64-1.15.11-36b2371c/geth ./geth-1.15.11
-  chmod +x geth-1.15.11
-  rm -rf geth-linux-amd64-1.15.11-36b2371c geth-1.15.11.tar.gz
-  echo "Geth 1.15.11 ready"
+if [ ! -x ./geth-1.17.4 ]; then
+  echo "Downloading Geth 1.17.4..."
+  curl -L https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.17.4-36a7dc72.tar.gz -o geth-1.17.4.tar.gz
+  tar xzf geth-1.17.4.tar.gz
+  mv geth-linux-amd64-1.17.4-36a7dc72/geth ./geth-1.17.4
+  chmod +x geth-1.17.4
+  rm -rf geth-linux-amd64-1.17.4-36a7dc72 geth-1.17.4.tar.gz
+  echo "Geth 1.17.4 ready"
 fi
 
 # ── 1. KILL EVERYTHING ──────────────────────────────────────────
@@ -58,7 +58,7 @@ print('genesis.json fixed')
 
 # ── 6. INIT GETH ─────────────────────────────────────────────────
 for node in node1 node2 node3; do
-  ./geth-1.15.11 init --datadir ./$node genesis.json
+  ./geth-1.17.4 init --datadir ./$node genesis.json
   echo "✓ $node initialized"
 done
 

@@ -11,9 +11,9 @@
     "istanbulBlock": 0,
     "berlinBlock": 0,
     "londonBlock": 0,
-    "shanghaiTime": 1782762614,
-    "cancunTime": 1782762614,
-    "pragueTime": 1782762614,
+    "shanghaiTime": 1782765608,
+    "cancunTime": 1782765608,
+    "pragueTime": 1782765608,
     "terminalTotalDifficulty": 0,
     "depositContractAddress": "0x4242424242424242424242424242424242424242",
     "blobSchedule": {
@@ -31,7 +31,7 @@
     "terminalTotalDifficultyPassed": true
   },
   "nonce": "0x0",
-  "timestamp": "0x6a42cc76",
+  "timestamp": "0x6a42d828",
   "extraData": "0x",
   "gasLimit": "0x1c9c380",
   "difficulty": "0x0",

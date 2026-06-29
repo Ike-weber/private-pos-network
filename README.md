@@ -118,7 +118,7 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 | **Validator Count** | `3` (all actively proposing) |
 | **Genesis Time** | dynamic on reset (3 minutes from `run-pos.sh` invocation) |
 | **Consensus Client** | Prysm v5.3.2 |
-| **Execution Client** | Geth v1.15.11 |
+| **Execution Client** | Geth v1.17.4 |
 | **Genesis Block Hash** | dynamic on reset |
 
 ---
@@ -1041,6 +1041,11 @@ Then run `./run-pos.sh` for full reset. The chain will start with earlier forks 
 ---
 
 ## Changelog
+
+### v1.2.0 — 2026-06-29
+- **Upgraded Geth to v1.17.4** (latest stable)
+- Kept Prysm v5.3.2 and Electra genesis
+- Verified block production with Geth 1.17.4
 
 ### v1.1.0 — 2026-06-29
 - **Pinned Prysm to v5.3.2** (downloaded binaries via `prysm.sh`)

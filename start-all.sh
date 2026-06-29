@@ -3,9 +3,9 @@ cd "$(dirname "$0")"
 export USE_PRYSM_VERSION=v5.3.2
 
 # Start Geth nodes
-./geth-1.15.11 --datadir node1 --port 30301 --http --http.port 8541 --http.api eth,net,engine,admin --authrpc.port 8551 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth1.log 2>&1 &
-./geth-1.15.11 --datadir node2 --port 30302 --http --http.port 8542 --http.api eth,net,engine,admin --authrpc.port 8552 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth2.log 2>&1 &
-./geth-1.15.11 --datadir node3 --port 30303 --http --http.port 8543 --http.api eth,net,engine,admin --authrpc.port 8553 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth3.log 2>&1 &
+./geth-1.17.4 --datadir node1 --port 30301 --http --http.port 8541 --http.api eth,net,engine,admin --authrpc.port 8551 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth1.log 2>&1 &
+./geth-1.17.4 --datadir node2 --port 30302 --http --http.port 8542 --http.api eth,net,engine,admin --authrpc.port 8552 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth2.log 2>&1 &
+./geth-1.17.4 --datadir node3 --port 30303 --http --http.port 8543 --http.api eth,net,engine,admin --authrpc.port 8553 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth3.log 2>&1 &
 echo "Geth started"
 sleep 10
 
