@@ -70,34 +70,34 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 |                              (Local Machine)                             |
 +-------------------------------------------------------------------------+
 |                                                                          |
-|  +-------------+    +-------------+    +-------------+                 |
-|  | Validator 1 |    | Validator 2 |    | Validator 3 |                 |
-|  |  (interop)  |    |  (interop)  |    |  (interop)  |                 |
-|  +------+------+    +------+------+    +------+------+                 |
-|         |                  |                  |                         |
-|         | REST API         | REST API         | REST API               |
-|         | (port 3500)      | (port 3501)      | (port 3502)            |
-|         v                  v                  v                         |
-|  +-------------+    +-------------+    +-------------+                 |
-|  |  Beacon 1   |<-->|  Beacon 2   |<-->|  Beacon 3   |                 |
-|  |   Prysm     |    |   Prysm     |    |   Prysm     |                 |
-|  |  (p2p:13000)|    |  (p2p:13001)|    |  (p2p:13002)|                 |
-|  +------+------+    +------+------+    +------+------+                 |
-|         |                  |                  |                         |
-|         | Engine API (JWT) | Engine API (JWT) | Engine API (JWT)       |
-|         | (port 8551)      | (port 8552)      | (port 8553)            |
-|         v                  v                  v                         |
-|  +-------------+    +-------------+    +-------------+                 |
-|  |   Geth 1    |<-->|   Geth 2    |<-->|   Geth 3    |                 |
-|  |  Execution  |    |  Execution  |    |  Execution  |                 |
-|  |  (http:8541)|    |  (http:8542)|    |  (http:8543)|                 |
-|  +-------------+    +-------------+    +-------------+                 |
+|  +-------------+    +-------------+    +-------------+                   |
+|  | Validator 1 |    | Validator 2 |    | Validator 3 |                   |
+|  |  (interop)  |    |  (interop)  |    |  (interop)  |                   |
+|  +------+------+    +------+------+    +------+------+                   |
+|         |                  |                  |                          |
+|         | REST API         | REST API         | REST API                 |
+|         | (port 3500)      | (port 3501)      | (port 3502)              |
+|         v                  v                  v                          |
+|  +-------------+    +-------------+    +-------------+                   |
+|  |  Beacon 1   |<-->|  Beacon 2   |<-->|  Beacon 3   |                   |
+|  |   Prysm     |    |   Prysm     |    |   Prysm     |                   |
+|  |  (p2p:13000)|    |  (p2p:13001)|    |  (p2p:13002)|                   |
+|  +------+------+    +------+------+    +------+------+                   |
+|         |                  |                  |                          |
+|         | Engine API (JWT) | Engine API (JWT) | Engine API (JWT)         |
+|         | (port 8551)      | (port 8552)      | (port 8553)              |
+|         v                  v                  v                          |
+|  +-------------+    +-------------+    +-------------+                   |
+|  |   Geth 1    |<-->|   Geth 2    |<-->|   Geth 3    |                   |
+|  |  Execution  |    |  Execution  |    |  Execution  |                   |
+|  |  (http:8541)|    |  (http:8542)|    |  (http:8543)|                   |
+|  +-------------+    +-------------+    +-------------+                   |
 |                                                                          |
 |  Data Flow:                                                              |
-|  1. Validator proposes block -> Beacon builds consensus block             |
-|  2. Beacon calls Engine API (forkchoiceUpdated) -> Geth builds payload    |
-|  3. Geth returns payload -> Beacon includes it in block                   |
-|  4. Beacon publishes block -> Validators attest to it                     |
+|  1. Validator proposes block -> Beacon builds consensus block            |
+|  2. Beacon calls Engine API (forkchoiceUpdated) -> Geth builds payload   |
+|  3. Geth returns payload -> Beacon includes it in block                  |
+|  4. Beacon publishes block -> Validators attest to it                    |
 |  5. Geth peers sync execution blocks via p2p (ports 30301-30303)         |
 |                                                                          |
 +-------------------------------------------------------------------------+
