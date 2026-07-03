@@ -1,6 +1,9 @@
 CONFIG_NAME: interop
 PRESET_BASE: interop
 
+# Execution layer chain ID
+DEPOSIT_NETWORK_ID: 12345
+
 # Genesis
 MIN_GENESIS_ACTIVE_VALIDATOR_COUNT: 1
 MIN_GENESIS_TIME: 0

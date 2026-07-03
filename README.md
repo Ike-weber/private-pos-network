@@ -995,27 +995,112 @@ rm -f genesis.json genesis.ssz
 
 ### Adding More Nodes
 
-1. **Create new datadirs:**
+The scripts now support `NUM_NODES`:
+
 ```bash
-mkdir -p node4/geth beacon4
+bash regen-and-restart.sh 4
+bash start-all.sh 4
 ```
 
-2. **Initialize Geth:**
+For 9 nodes on 9 separate machines, use `distributed-start.sh`.
+
+---
+
+## Distributed Deployment (9 Nodes on 9 Machines)
+
+Each machine runs one full node: **Geth + Prysm beacon + Prysm validator**.
+
+### Files to copy to every machine
+
+Copy these exact files from the genesis machine to every target machine:
+
 ```bash
-./geth-1.15.11 init --datadir node4 genesis.json
+config.yaml
+genesis.json
+genesis.ssz
+jwt.hex
 ```
 
-3. **Start Geth with unique ports:**
+Also copy the binaries:
+
 ```bash
-./geth-1.15.11 --datadir node4 --port 30306 --http.port 8544 ...
+geth-1.17.4
+beacon-chain-v5.3.2
+validator-v5.3.2
 ```
 
-4. **Start beacon with unique ports:**
+### 1. Generate a 9-validator genesis on the genesis machine
+
 ```bash
-./prysm.sh beacon-chain --datadir beacon4 --p2p-tcp-port 13003 --grpc-gateway-port 3503 ...
+bash regen-and-restart.sh 9
 ```
 
-5. **Peer to existing nodes:** Use `admin_addPeer` for Geth and `--bootstrap-node` for Prysm.
+This creates `genesis.json` and `genesis.ssz` for 9 validators. **Do not run this** if you already have a live network you want to keep — it wipes and regenerates.
+
+### 2. Start the seed node (machine 1)
+
+```bash
+export NODE_ID=1
+export MACHINE_IP=10.0.0.1
+bash distributed-start.sh
+```
+
+After beacon1 starts, get its peer ID and P2P port:
+
+```bash
+curl -s http://10.0.0.1:3500/eth/v1/node/identity | \
+  python3 -c "import sys,json; d=json.load(sys.stdin); print('PEER_ID='+d['data']['peer_id']); print('ENR='+d['data']['enr'])"
+```
+
+The P2P port is `13000` by default for machine 1.
+
+You can also copy the helper script and fill the seed peer ID:
+
+```bash
+bash copy-to-node.sh 2 root@10.0.0.2
+```
+
+### 3. Start machines 2–9
+
+On each machine, set the seed node details and its own IP:
+
+```bash
+export NODE_ID=2
+export MACHINE_IP=10.0.0.2
+export SEED_BEACON_IP=10.0.0.1
+export SEED_BEACON_P2P_PORT=13000
+export SEED_BEACON_PEER_ID=16Uiu2HAk...
+bash distributed-start.sh
+```
+
+Repeat for `NODE_ID=3..9` with unique IPs. Each machine uses different ports based on `NODE_ID`.
+
+### Network layout
+
+| Machine | Node ID | IP | Geth HTTP | Engine API | Beacon REST | Beacon P2P TCP | Beacon P2P UDP |
+|---------|---------|-----|-----------|------------|-------------|----------------|----------------|
+| 1 | 1 | 10.0.0.1 | 8541 | 8551 | 3500 | 13000 | 12000 |
+| 2 | 2 | 10.0.0.2 | 8542 | 8552 | 3501 | 13001 | 12001 |
+| ... | ... | ... | ... | ... | ... | ... | ... |
+| 9 | 9 | 10.0.0.9 | 8549 | 8559 | 3509 | 13008 | 12008 |
+
+### Firewall ports to open between machines
+
+| Port Range | Purpose | Restrict to |
+|------------|---------|-------------|
+| 30301-30309 | Geth P2P | All nodes |
+| 13000-13008 | Beacon P2P TCP | All nodes |
+| 12000-12008 | Beacon P2P UDP | All nodes |
+| 8551-8559 | Engine API | Localhost only per machine |
+| 3500-3509 | Beacon REST API | Local validator / monitoring |
+| 8541-8549 | Geth HTTP | Monitoring only |
+
+### Important notes
+
+- **Never** expose Geth HTTP (`854x`) or Engine API (`855x`) to the public internet without a proxy or firewall.
+- All 9 machines must share the exact same `genesis.json` and `genesis.ssz`.
+- Each machine should have at least **4 CPU cores and 8 GB RAM**.
+- For a public deployment, use a VPN, private network, or authenticated RPC gateway.
 
 ### Changing Fork Epochs
 

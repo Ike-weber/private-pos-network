@@ -6,28 +6,61 @@ export PRYSM_ALLOW_UNVERIFIED_BINARIES=1
 PRYSM_VERSION="v5.3.2"
 BEACON="./beacon-chain-${PRYSM_VERSION}"
 VALIDATOR="./validator-${PRYSM_VERSION}"
+NUM_NODES=${1:-4}
+
+mkdir -p logs
+
+# Suggested fee recipients for each node
+FEE_RECIPIENTS=(
+  "0x8B0681dBD724dcaC48b433e9df8A220D47C94a19"
+  "0xC4d87b80780117F805D620c4FF88e5380699dB41"
+  "0x2F54526037527688d3b2DEFA3a0B1F4CAf78dB8F"
+  "0x1234567890123456789012345678901234567890"
+  "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
+  "0x1111111111111111111111111111111111111111"
+  "0x2222222222222222222222222222222222222222"
+  "0x3333333333333333333333333333333333333333"
+  "0x4444444444444444444444444444444444444444"
+)
 
 # Start Geth nodes
-./geth-1.17.4 --datadir node1 --port 30301 --http --http.port 8541 --http.api eth,net,engine,admin --authrpc.port 8551 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth1.log 2>&1 &
-./geth-1.17.4 --datadir node2 --port 30302 --http --http.port 8542 --http.api eth,net,engine,admin --authrpc.port 8552 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth2.log 2>&1 &
-./geth-1.17.4 --datadir node3 --port 30303 --http --http.port 8543 --http.api eth,net,engine,admin --authrpc.port 8553 --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> logs/geth3.log 2>&1 &
+for i in $(seq 1 $NUM_NODES); do
+  HTTP_PORT=$((8540 + i))
+  AUTH_PORT=$((8550 + i))
+  P2P_PORT=$((30300 + i))
+  ./geth --datadir "node${i}" --port $P2P_PORT --http --http.port $HTTP_PORT --http.api eth,net,engine,admin --authrpc.port $AUTH_PORT --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> "logs/geth${i}.log" 2>&1 &
+done
 echo "Geth started"
 sleep 10
 
-# Peer Geth via HTTP (IPC disabled)
-ENODE1=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' http://localhost:8541 | python3 -c "import sys,json; e=json.load(sys.stdin)['result']['enode']; print(e.replace(e.split('@')[1].split(':')[0],'127.0.0.1'))")
-ENODE2=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' http://localhost:8542 | python3 -c "import sys,json; e=json.load(sys.stdin)['result']['enode']; print(e.replace(e.split('@')[1].split(':')[0],'127.0.0.1'))")
-ENODE3=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' http://localhost:8543 | python3 -c "import sys,json; e=json.load(sys.stdin)['result']['enode']; print(e.replace(e.split('@')[1].split(':')[0],'127.0.0.1'))")
-curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$ENODE2\"],\"id\":1}" http://localhost:8541 >/dev/null
-curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$ENODE3\"],\"id\":1}" http://localhost:8541 >/dev/null
-curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$ENODE1\"],\"id\":1}" http://localhost:8542 >/dev/null
-curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$ENODE3\"],\"id\":1}" http://localhost:8542 >/dev/null
-curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$ENODE1\"],\"id\":1}" http://localhost:8543 >/dev/null
-curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"$ENODE2\"],\"id\":1}" http://localhost:8543 >/dev/null
+# Peer Geth nodes via HTTP (IPC disabled)
+ENODES=()
+for i in $(seq 1 $NUM_NODES); do
+  HTTP_PORT=$((8540 + i))
+  ENODE=$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_nodeInfo","params":[],"id":1}' "http://localhost:${HTTP_PORT}" | python3 -c "import sys,json; e=json.load(sys.stdin)['result']['enode']; print(e.replace(e.split('@')[1].split(':')[0],'127.0.0.1'))")
+  ENODES+=("$ENODE")
+done
+
+for i in $(seq 1 $NUM_NODES); do
+  HTTP_PORT=$((8540 + i))
+  for j in $(seq 1 $NUM_NODES); do
+    if [ "$i" != "$j" ]; then
+      curl -s -X POST -H "Content-Type: application/json" --data "{\"jsonrpc\":\"2.0\",\"method\":\"admin_addPeer\",\"params\":[\"${ENODES[$((j-1))]}\"],\"id\":1}" "http://localhost:${HTTP_PORT}" >/dev/null
+    fi
+  done
+done
 echo "Geth peered"
 
+# Resolve WSL host IP dynamically (first non-loopback IPv4)
+HOST_IP=$(hostname -I | awk '{print $1}')
+if [ -z "$HOST_IP" ]; then
+  echo "ERROR: Could not resolve HOST_IP"
+  exit 1
+fi
+echo "Host IP: $HOST_IP"
+
 # Start beacon1
-$BEACON --datadir beacon1 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient 0x8B0681dBD724dcaC48b433e9df8A220D47C94a19 --execution-endpoint http://localhost:8551 --rpc-port 4000 --grpc-gateway-port 3500 --p2p-tcp-port 13000 --p2p-udp-port 12000 --bootstrap-node= >> logs/beacon1.log 2>&1 &
+$BEACON --datadir beacon1 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[0]} --execution-endpoint http://localhost:8551 --rpc-port 4000 --grpc-gateway-port 3500 --p2p-tcp-port 13000 --p2p-udp-port 12000 --p2p-host-ip $HOST_IP --bootstrap-node= >> logs/beacon1.log 2>&1 &
 echo "Beacon1 started"
 
 # Wait for beacon1 API to be ready (retry up to 30s)
@@ -44,16 +77,24 @@ if [ -z "$BEACON1_PEER" ]; then
   exit 1
 fi
 
-# Start beacon2/3 with correct bootstrap
-$BEACON --datadir beacon2 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient 0xC4d87b80780117F805D620c4FF88e5380699dB41 --execution-endpoint http://localhost:8552 --rpc-port 4001 --grpc-gateway-port 3501 --p2p-tcp-port 13001 --p2p-udp-port 12001 --bootstrap-node=/ip4/127.0.0.1/tcp/13000/p2p/$BEACON1_PEER >> logs/beacon2.log 2>&1 &
-$BEACON --datadir beacon3 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient 0x2F54526037527688d3b2DEFA3a0B1F4CAf78dB8F --execution-endpoint http://localhost:8553 --rpc-port 4002 --grpc-gateway-port 3502 --p2p-tcp-port 13002 --p2p-udp-port 12002 --bootstrap-node=/ip4/127.0.0.1/tcp/13000/p2p/$BEACON1_PEER >> logs/beacon3.log 2>&1 &
-echo "Beacon2/3 started"
+# Start beacon2..N with static peer to beacon1
+for i in $(seq 2 $NUM_NODES); do
+  HTTP_PORT=$((8540 + i))
+  AUTH_PORT=$((8550 + i))
+  RPC_PORT=$((3999 + i))
+  GATEWAY_PORT=$((3499 + i))
+  TCP_PORT=$((12999 + i))
+  UDP_PORT=$((11999 + i))
+  $BEACON --datadir "beacon${i}" --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[$((i-1))]} --execution-endpoint http://localhost:${AUTH_PORT} --rpc-port ${RPC_PORT} --grpc-gateway-port ${GATEWAY_PORT} --p2p-tcp-port ${TCP_PORT} --p2p-udp-port ${UDP_PORT} --p2p-host-ip $HOST_IP --peer=/ip4/$HOST_IP/tcp/13000/p2p/$BEACON1_PEER >> "logs/beacon${i}.log" 2>&1 &
+done
+echo "Beacon2..${NUM_NODES} started"
 sleep 10
 
 # Start validators
-$VALIDATOR --datadir beacon1/validator --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index 0 --beacon-rest-api-provider http://localhost:3500 >> logs/validator1.log 2>&1 &
-$VALIDATOR --datadir beacon2/validator --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index 1 --beacon-rest-api-provider http://localhost:3501 >> logs/validator2.log 2>&1 &
-$VALIDATOR --datadir beacon3/validator --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index 2 --beacon-rest-api-provider http://localhost:3502 >> logs/validator3.log 2>&1 &
+for i in $(seq 1 $NUM_NODES); do
+  GATEWAY_PORT=$((3499 + i))
+  ./validator-v5.3.2 --datadir "beacon${i}/validator" --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index $((i-1)) --beacon-rest-api-provider http://localhost:${GATEWAY_PORT} >> "logs/validator${i}.log" 2>&1 &
+done
 
 echo "All started"
 ps aux | grep -E "geth|prysm|beacon|validator" | grep -v grep | wc -l

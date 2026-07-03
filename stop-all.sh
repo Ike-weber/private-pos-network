@@ -1,17 +1,11 @@
 #!/bin/bash
-# Stop all devnet processes
-
-pkill -f geth || true
-pkill -f prysm.sh || true
-pkill -f beacon-chain || true
-pkill -f validator || true
-
+pkill -f geth
+pkill -f prysm
+pkill -f validator
+pkill -f prysm.sh
 sleep 2
-
-# Force kill any survivors
-pkill -9 -f geth || true
-pkill -9 -f prysm.sh || true
-pkill -9 -f beacon-chain || true
-pkill -9 -f validator || true
-
+pkill -9 -f geth
+pkill -9 -f prysm
+pkill -9 -f validator
+pkill -9 -f prysm.sh
 echo "All devnet processes stopped"
