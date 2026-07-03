@@ -9,7 +9,8 @@ echo "Node count: $NUM_NODES"
 
 # Wipe old data
 for i in $(seq 1 $NUM_NODES); do
-  rm -rf "beacon${i}"/* "validator${i}"/* "node${i}/geth" 2>/dev/null || true
+  rm -rf "beacon${i}" "validator${i}" "node${i}/geth" 2>/dev/null || true
+  mkdir -p "beacon${i}" "node${i}"
 done
 rm -f genesis.json genesis.ssz
 
