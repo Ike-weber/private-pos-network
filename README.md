@@ -5,7 +5,7 @@
 [![Chain ID: 12345](https://img.shields.io/badge/Chain%20ID-12345-green)](https://chainlist.org/chain/12345)
 [![Block Time: 12s](https://img.shields.io/badge/Block%20Time-12s-orange)](https://ethereum.org/en/roadmap/merge/)
 
-A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with 3 Geth execution nodes, 3 Prysm beacon nodes, and 3 validators. Designed for smart contract development, protocol testing, and consensus-layer experimentation without public testnet dependencies.
+A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with up to 3 Geth execution nodes, 3 Prysm beacon nodes, and 3 genesis validators — plus a real deposit contract that lets anyone with 32 devnet ETH become a validator. Designed for smart contract development, protocol testing, and consensus-layer experimentation without public testnet dependencies.
 
 ---
 
@@ -19,6 +19,7 @@ A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with 3 Geth 
 - [Configuration Reference](#configuration-reference)
 - [Quick Start](#quick-start)
 - [How PoS Works Here](#how-pos-works-here)
+- [Real Validator Deposits](#real-validator-deposits-permissionless-staking)
 - [Network Ports](#network-ports)
 - [Interacting with the Network](#interacting-with-the-network)
 - [Connecting MetaMask](#connecting-metamask)
@@ -31,6 +32,7 @@ A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with 3 Geth 
 - [Full Reset Procedure](#full-reset-procedure)
 - [Extending the Network](#extending-the-network)
 - [Known Limitations](#known-limitations)
+- [Single-Node Mode](#single-node-mode)
 - [Changelog](#changelog)
 - [License](#license)
 - [Contributors](#contributors)
@@ -42,10 +44,11 @@ A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with 3 Geth 
 This devnet is a self-contained Ethereum network that runs entirely on your local machine. Unlike mainnet or public testnets (Goerli, Sepolia, Holesky), this network:
 
 - **Requires no external peers** — all nodes are local
-- **Has fast finality** — 3 validators control the entire network
+- **Has fast finality** — 3 genesis validators control the network; more can join via real deposits
 - **Costs nothing** — all ETH is fake/devnet-only
 - **Resets instantly** — wipe data and restart in under 2 minutes
 - **Uses the Electra fork** — Altair, Bellatrix, Capella, Deneb and Electra are active from genesis
+- **Supports real deposits** — anyone with 32 devnet ETH can call the deposit contract and activate a new validator
 
 **Primary Use Cases:**
 - Smart contract development and testing
@@ -54,11 +57,11 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 - Engine API / execution layer integration testing
 - Educational purposes for understanding Ethereum PoS
 
-**What Makes It Different:**
-- Uses **interop validators** (pre-generated deterministic keys, not real deposits)
-- Active forks from **epoch 0** (no waiting for upgrades)
-- **No deposit contract** — validators are injected directly into genesis state
-- **Local-only** — not discoverable on the public internet
+| **What Makes It Different:**
+|- Uses **interop validators** (pre-generated deterministic keys, not real deposits) for the genesis set
+|- Active forks from **epoch 0** (no waiting for upgrades)
+|- **Real deposit contract** at `0x4242424242424242424242424242424242424242` — anyone with 32 devnet ETH can deposit and become a validator
+|- **Local-only** — not discoverable on the public internet
 
 ---
 
@@ -73,6 +76,7 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 |  +-------------+    +-------------+    +-------------+                   |
 |  | Validator 1 |    | Validator 2 |    | Validator 3 |                   |
 |  |  (interop)  |    |  (interop)  |    |  (interop)  |                   |
+|  |  genesis    |    |  genesis    |    |  genesis    |                   |
 |  +------+------+    +------+------+    +------+------+                   |
 |         |                  |                  |                          |
 |         | REST API         | REST API         | REST API                 |
@@ -115,7 +119,7 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 | **Preset** | Interop (minimal config) |
 | **Slots per Epoch** | `6` |
 | **Block Time** | `12` seconds |
-| **Validator Count** | `3` (all actively proposing) |
+|| **Validator Count** | `3` genesis validators (more can join via 32 ETH deposit) |
 | **Genesis Time** | dynamic on reset (3 minutes from `run-pos.sh` invocation) |
 | **Consensus Client** | Prysm v5.3.2 |
 | **Execution Client** | Geth v1.17.4 |
@@ -178,6 +182,10 @@ This devnet is a self-contained Ethereum network that runs entirely on your loca
 ├── start-all.sh              # Start all 9 processes with correct peering
 ├── stop-all.sh               # Kill all devnet processes
 ├── prysm.sh                  # Prysm launcher wrapper (downloads/verifies Prysm)
+├── send_deposit_new.py       # Submit a real 32 ETH deposit to become a validator
+├── deposit_data_new.json     # Example validator deposit data (BLS keys, signature, root)
+├── start-single-node.sh      # Lightweight single-node deployment (1 Geth + 1 beacon + 1 validator)
+├── geth-flags.txt            # Reference Geth execution-layer flags
 ├── geth-1.15.11              # Pre-built Geth binary
 ├── README.md                 # This file
 └── .git/                     # Git repository
@@ -379,7 +387,7 @@ Unlike PoW (mining), PoS uses **validators** who stake ETH to propose and attest
 |------|-------------|----------------|
 | **Slot** | 12-second time window for a block | 12 seconds |
 | **Epoch** | Group of 6 slots | 72 seconds (6 x 12s) |
-| **Validator** | Entity that proposes/attests blocks | 3 interop validators (indices 0,1,2) |
+| **Validator** | Entity that proposes/attests blocks | 3 interop genesis validators (indices 0,1,2); more can join via real 32 ETH deposits |
 | **Attestation** | Vote that a block is valid | Submitted every slot by active validators |
 | **Sync Committee** | Group of validators providing light client data | rotates every epoch |
 | **Engine API** | Interface between beacon and execution | `localhost:8551` with JWT auth |
@@ -419,6 +427,70 @@ Validators attest to block validity
     v
 Next slot begins
 ```
+
+---
+
+## Real Validator Deposits (Permissionless Staking)
+
+This devnet includes a real Ethereum deposit contract at `0x4242424242424242424242424242424242424242`. Anyone who holds 32 devnet ETH can become a validator by calling the contract.
+
+### How It Differs from Genesis Validators
+
+| Genesis validators | Deposit validators |
+|---|---|
+| Injected into `genesis.ssz` at chain start | Created by a transaction to the deposit contract |
+| No ETH actually moves on the execution layer | 32 ETH is transferred to the deposit contract |
+| Controlled by the network operator | Can be created by anyone with 32 devnet ETH |
+| Indices 0, 1, 2 | Starts at index 3 and grows |
+
+### Deposit a New Validator
+
+1. Generate deposit data with the [staking-deposit-cli](https://github.com/ethereum/staking-deposit-cli):
+   ```bash
+   ./deposit new-mnemonic --num_validators 1 --chain devnet --eth1_withdrawal_address 0x...
+   ```
+   This produces `deposit_data-*.json` containing your BLS pubkey, withdrawal credentials, signature, and deposit data root.
+
+2. Place the file next to `send_deposit_new.py` and update `deposit_data_new.json` if needed.
+
+3. Fund the sender account. The default sender is the Geth dev account `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`, which is pre-funded on this private chain. To use your own account, change `from_key` in `send_deposit_new.py`.
+
+4. Send the deposit:
+   ```bash
+   cd ~/eth-pos/private-pos
+   python3 send_deposit_new.py
+   ```
+
+5. Verify the beacon state picked it up:
+   ```bash
+   curl -s http://localhost:3500/eth/v1/beacon/states/head/validators | jq '.data | length'
+   ```
+   The count should increase from 3 to 4. After a few epochs the new validator becomes `active_ongoing`.
+
+### What the Script Does
+
+`send_deposit_new.py`:
+- Connects to Geth on `http://localhost:8541`
+- Reads `deposit_data_new.json`
+- Builds a transaction calling `deposit(pubkey, withdrawal_credentials, signature, deposit_data_root)`
+- Sends exactly 32 ETH to the deposit contract
+- Waits for the receipt
+
+### Example Output
+
+```text
+Sender: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Amount (Gwei): 32000000000
+Tx hash: 8fbc7c64b97e3b2643f0264d3444438b13e1c4c686da6ba548090d3675e0fbd9
+Status: 1
+Block: 22
+```
+
+### Notes
+
+- The deposit contract verifies the BLS signature and `deposit_data_root`. Invalid deposits are rejected by the contract.
+- The beacon chain only activates a validator after the deposit is processed by a beacon block and the activation queue reaches the new validator.
+- This is **permissionless at the protocol level**, but users still need 32 devnet ETH. There is no faucet in this repo.
 
 ---
 
@@ -702,6 +774,26 @@ fi
 - Use interop keys on any public network
 - Run this on a production server
 - Send real ETH to any devnet address
+
+---
+
+## Single-Node Mode
+
+For a lighter deployment on one machine, use `start-single-node.sh`:
+
+```bash
+cd ~/eth-pos/private-pos
+./start-single-node.sh
+```
+
+This starts:
+- 1 Geth execution node
+- 1 Prysm beacon node
+- 1 validator
+
+Useful when you only need one node producing blocks, e.g. for an overnight run or a single-machine test before scaling out.
+
+**Note:** Finality still requires 2/3 of validators online. With 9 total validators across the network, at least 6 must be running. Single-node mode is just for lightweight testing, not a complete distributed network.
 
 ---
 
