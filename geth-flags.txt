@@ -1,0 +1,37 @@
+Current Geth flags in start-all.sh:
+  --datadir nodeN
+  --port 3030N
+  --http
+  --http.port 854N
+  --http.api eth,net,engine,admin
+  --authrpc.port 855N
+  --authrpc.jwtsecret jwt.hex
+  --syncmode full
+  --networkid 12345
+  --ipcdisable
+
+Geth gaps to implement:
+  --ws                        WebSocket RPC
+  --ws.port 854N+10           (e.g. 8551 for node1)
+  --ws.api eth,net,engine,admin,txpool
+  --metrics
+  --metrics.addr 127.0.0.1
+  --metrics.port 6060+N
+  --gcmode archive            keep all historical state
+  --state.scheme path         explicit state scheme
+  --authrpc.addr 127.0.0.1    explicit auth RPC bind
+  --authrpc.vhosts localhost  allow local virtual hosts
+  --nat extip:IP              external IP for P2P
+  --netrestrict 10.0.0.0/8    restrict local peering
+  --http.vhosts '*'           allow any host header
+  --http.corsdomain '*'       allow CORS
+  --txpool.locals             local tx senders
+  --snapshot                  state snapshot generation
+  --rpc.evmtimeout 0          disable EVM timeout
+  --debug                     expose debug APIs
+
+Deposit transaction path:
+  - deploy DepositContract.sol bytecode in genesis alloc
+  - fund genesis accounts
+  - use eth_sendRawTransaction to submit deposit() calls
+  - beacon chain processes deposit logs

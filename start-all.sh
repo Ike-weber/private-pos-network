@@ -23,12 +23,32 @@ FEE_RECIPIENTS=(
   "0x4444444444444444444444444444444444444444"
 )
 
-# Start Geth nodes
+# Resolve WSL host IP dynamically (first non-loopback IPv4)
+HOST_IP=$(hostname -I | awk '{print $1}')
+if [ -z "$HOST_IP" ]; then
+  echo "ERROR: Could not resolve HOST_IP"
+  exit 1
+fi
+echo "Host IP: $HOST_IP"
+
+# Start Geth nodes with full execution-layer features enabled
 for i in $(seq 1 $NUM_NODES); do
   HTTP_PORT=$((8540 + i))
-  AUTH_PORT=$((8550 + i))
+  WS_PORT=$((8550 + i))
+  AUTH_PORT=$((8560 + i))
+  METRICS_PORT=$((6060 + i))
   P2P_PORT=$((30300 + i))
-  ./geth --datadir "node${i}" --port $P2P_PORT --http --http.port $HTTP_PORT --http.api eth,net,engine,admin --authrpc.port $AUTH_PORT --authrpc.jwtsecret jwt.hex --syncmode full --networkid 12345 --ipcdisable >> "logs/geth${i}.log" 2>&1 &
+  nohup ./geth \
+    --datadir "node${i}" \
+    --port $P2P_PORT \
+    --http --http.port $HTTP_PORT --http.api eth,net,web3,engine,admin,debug,txpool,clique --http.vhosts '*' --http.corsdomain '*' --http.addr 127.0.0.1 \
+    --ws --ws.port $WS_PORT --ws.api eth,net,web3,engine,admin,debug,txpool --ws.origins '*' \
+    --authrpc.addr 127.0.0.1 --authrpc.port $AUTH_PORT --authrpc.vhosts localhost --authrpc.jwtsecret jwt.hex \
+    --metrics --metrics.addr 127.0.0.1 --metrics.port $METRICS_PORT \
+    --syncmode full --gcmode archive --state.scheme path --snapshot \
+    --networkid 12345 --ipcdisable \
+    --nat extip:$HOST_IP --netrestrict 172.25.235.0/24 \
+    >> "logs/geth${i}.log" 2>&1 &
 done
 echo "Geth started"
 sleep 10
@@ -51,16 +71,8 @@ for i in $(seq 1 $NUM_NODES); do
 done
 echo "Geth peered"
 
-# Resolve WSL host IP dynamically (first non-loopback IPv4)
-HOST_IP=$(hostname -I | awk '{print $1}')
-if [ -z "$HOST_IP" ]; then
-  echo "ERROR: Could not resolve HOST_IP"
-  exit 1
-fi
-echo "Host IP: $HOST_IP"
-
 # Start beacon1
-$BEACON --datadir beacon1 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[0]} --execution-endpoint http://localhost:8551 --rpc-port 4000 --grpc-gateway-port 3500 --p2p-tcp-port 13000 --p2p-udp-port 12000 --p2p-host-ip $HOST_IP --bootstrap-node= >> logs/beacon1.log 2>&1 &
+nohup $BEACON --datadir beacon1 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[0]} --execution-endpoint http://localhost:8561 --rpc-port 4000 --grpc-gateway-port 3500 --p2p-tcp-port 13000 --p2p-udp-port 12000 --p2p-host-ip $HOST_IP --bootstrap-node= >> logs/beacon1.log 2>&1 &
 echo "Beacon1 started"
 
 # Wait for beacon1 API to be ready (retry up to 30s)
@@ -80,12 +92,12 @@ fi
 # Start beacon2..N with static peer to beacon1
 for i in $(seq 2 $NUM_NODES); do
   HTTP_PORT=$((8540 + i))
-  AUTH_PORT=$((8550 + i))
+  AUTH_PORT=$((8560 + i))
   RPC_PORT=$((3999 + i))
   GATEWAY_PORT=$((3499 + i))
   TCP_PORT=$((12999 + i))
   UDP_PORT=$((11999 + i))
-  $BEACON --datadir "beacon${i}" --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[$((i-1))]} --execution-endpoint http://localhost:${AUTH_PORT} --rpc-port ${RPC_PORT} --grpc-gateway-port ${GATEWAY_PORT} --p2p-tcp-port ${TCP_PORT} --p2p-udp-port ${UDP_PORT} --p2p-host-ip $HOST_IP --peer=/ip4/$HOST_IP/tcp/13000/p2p/$BEACON1_PEER >> "logs/beacon${i}.log" 2>&1 &
+  nohup $BEACON --datadir "beacon${i}" --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[$((i-1))]} --execution-endpoint http://localhost:${AUTH_PORT} --rpc-port ${RPC_PORT} --grpc-gateway-port ${GATEWAY_PORT} --p2p-tcp-port ${TCP_PORT} --p2p-udp-port ${UDP_PORT} --p2p-host-ip $HOST_IP --peer=/ip4/$HOST_IP/tcp/13000/p2p/$BEACON1_PEER >> "logs/beacon${i}.log" 2>&1 &
 done
 echo "Beacon2..${NUM_NODES} started"
 sleep 10
@@ -93,7 +105,7 @@ sleep 10
 # Start validators
 for i in $(seq 1 $NUM_NODES); do
   GATEWAY_PORT=$((3499 + i))
-  ./validator-v5.3.2 --datadir "beacon${i}/validator" --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index $((i-1)) --beacon-rest-api-provider http://localhost:${GATEWAY_PORT} >> "logs/validator${i}.log" 2>&1 &
+  nohup ./validator-v5.3.2 --datadir "beacon${i}/validator" --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index $((i-1)) --beacon-rest-api-provider http://localhost:${GATEWAY_PORT} >> "logs/validator${i}.log" 2>&1 &
 done
 
 echo "All started"

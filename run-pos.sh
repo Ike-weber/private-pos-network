@@ -49,7 +49,7 @@ fi
 
 # ── 0b. ENSURE PRYSM BINARIES ARE AVAILABLE ──────────────────────
 PRYSM_VERSION="v5.3.2"
-if [ ! -x "./prysmctl-${PRYSM_VERSION}" ]; then
+if [ ! -x "./prysmctl-${PRYSM_VERSION}" ] || [ ! -x "./beacon-chain-${PRYSM_VERSION}" ] || [ ! -x "./validator-${PRYSM_VERSION}" ]; then
   echo "Downloading Prysm ${PRYSM_VERSION} binaries..."
   mkdir -p dist
   for bin in beacon-chain validator prysmctl; do
@@ -87,13 +87,61 @@ done
 GENESIS_TIME=$(( $(date +%s) + 180 ))
 echo "Genesis at: $GENESIS_TIME = $(date -d @$GENESIS_TIME)"
 
-# ── 4. GENERATE genesis.ssz ─────────────────────────────────────
+# ── 4. PATCH DEPOSIT CONTRACT BYTECODE IN TEMPLATE ───────────────
+# prysmctl emits the deposit contract as init+runtime concatenated.
+# Geth expects only the runtime bytecode. Strip the init prefix from the
+# template so prysmctl generates a consistent genesis.json and genesis.ssz.
+echo "Patching deposit contract bytecode..."
+python3 << 'PYEOF'
+import json, sys
+
+RUNTIME_START = 0x137
+RUNTIME_LEN   = 0x17bd
+CONTRACT      = "4242424242424242424242424242424242424242"
+
+for fname in ["genesis_with_deposit.json", "genesis.json"]:
+    try:
+        with open(fname, 'r') as f:
+            genesis = json.load(f)
+    except FileNotFoundError:
+        continue
+
+    code_hex   = genesis['alloc'][CONTRACT]['code']
+    code_bytes = bytes.fromhex(code_hex[2:] if code_hex.startswith('0x') else code_hex)
+
+    # Only patch if still contains init code (length > runtime-only)
+    if len(code_bytes) <= RUNTIME_LEN:
+        print(f"✓ {fname}: already runtime-only ({len(code_bytes)} bytes), skipping")
+        continue
+
+    runtime = code_bytes[RUNTIME_START : RUNTIME_START + RUNTIME_LEN]
+
+    if runtime[:4].hex() != '60806040':
+        print(f"ERROR: {fname}: unexpected runtime start {runtime[:4].hex()}", file=sys.stderr)
+        sys.exit(1)
+
+    genesis['alloc'][CONTRACT]['code'] = '0x' + runtime.hex()
+
+    with open(fname, 'w') as f:
+        json.dump(genesis, f, indent=2)
+
+    print(f"✓ {fname}: patched to runtime-only ({len(runtime)} bytes)")
+PYEOF
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to patch deposit contract bytecode. Aborting."
+    exit 1
+fi
+
+# ── 4b. GENERATE genesis.ssz ──────────────────────────────────────
+# Use the template that includes the real deposit contract bytecode at
+# 0x4242424242424242424242424242424242424242
 ./prysmctl-v5.3.2 testnet generate-genesis \
   --fork electra \
   --num-validators 3 \
   --genesis-time $GENESIS_TIME \
   --chain-config-file config.yaml \
-  --geth-genesis-json-in genesis.json.working \
+  --geth-genesis-json-in genesis_with_deposit.json \
   --geth-genesis-json-out genesis.json \
   --output-ssz genesis.ssz
 
@@ -101,10 +149,20 @@ echo "Genesis at: $GENESIS_TIME = $(date -d @$GENESIS_TIME)"
 python3 -c "
 import json
 g = json.load(open('genesis.json'))
-g['config']['terminalTotalDifficultyPassed'] = True
-g['config']['terminalTotalDifficulty'] = 0
+c = g.setdefault('config', {})
+c['terminalTotalDifficultyPassed'] = True
+c['terminalTotalDifficulty'] = 0
+c.setdefault('shanghaiTime', 0)
+c.setdefault('cancunTime', 0)
+c.setdefault('pragueTime', 0)
+c.setdefault('blobSchedule', {
+  'cancun': {'target': 3, 'max': 6, 'baseFeeUpdateFraction': 3338477},
+  'prague': {'target': 6, 'max': 9, 'baseFeeUpdateFraction': 5007716}
+})
 print('timestamp:', g.get('timestamp'))
-print('terminalTotalDifficultyPassed:', g['config'].get('terminalTotalDifficultyPassed'))
+print('terminalTotalDifficultyPassed:', c.get('terminalTotalDifficultyPassed'))
+print('depositContractAddress:', c.get('depositContractAddress'))
+print('deposit contract code present:', 'code' in g.get('alloc', {}).get('4242424242424242424242424242424242424242', {}))
 json.dump(g, open('genesis.json', 'w'), indent=2)
 print('genesis.json fixed')
 "
@@ -116,7 +174,9 @@ for node in node1 node2 node3; do
 done
 
 # ── 7. START ALL 9 PROCESSES NOW ─────────────────────────────────
-./start-all.sh &
+# Use nohup so start-all.sh survives the run-pos.sh shell exiting.
+nohup ./start-all.sh 3 > logs/start-all.log 2>&1 &
+disown
 
 echo ""
 echo "Waiting for genesis at $(date -d @$GENESIS_TIME)"

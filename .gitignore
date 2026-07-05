@@ -63,3 +63,7 @@ geth
 dist/
 docs/
 
+venv/
+.venv/
+__pycache__/
+*.pyc
