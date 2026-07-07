@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
-NUM_NODES=${1:-4}
+NUM_NODES=${1:-9}
 GENESIS_TIME=$(date -d "+2 minutes" +%s)
 echo "Using genesis time: $GENESIS_TIME"
 echo "Node count: $NUM_NODES"

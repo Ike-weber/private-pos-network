@@ -1,0 +1,27 @@
+[Unit]
+Description=Private PoS Devnet Node %i
+After=network.target
+
+[Service]
+Type=simple
+User=%I
+WorkingDirectory=/home/harsh/eth-pos/private-pos
+ExecStart=/home/harsh/eth-pos/private-pos/pos.sh start
+ExecStop=/home/harsh/eth-pos/private-pos/pos.sh stop
+Restart=on-failure
+RestartSec=5
+
+# Resource limits
+MemoryMax=8G
+CPUQuota=400%
+TasksMax=8192
+LimitNOFILE=65535
+
+# Sandboxing
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/harsh/eth-pos/private-pos
+
+[Install]
+WantedBy=multi-user.target

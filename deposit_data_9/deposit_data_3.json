@@ -1,0 +1,9 @@
+{
+  "account": "m/12381/3600/2/0/0",
+  "deposit_data_root": "635bcaf711ea7b949dbec304b426f24f714df537c77d40a0ae89ca8fb69a6ce9",
+  "pubkey": "996047aaff075998e230fd0e5ec7f6d68d9bd0ec0f8e8269f401c1611af73fe9d78f91332cfef03f7b056a212cfec0a2",
+  "signature": "a1d0a7c56465fda28694f457f65a48d17a49d75767658824735327751a4291663e0e15bbce870b76fb3aacbcde6142c209c8a0e904967c1cf2fd1434fd7f44960a430212decdef3f3ddace77bcc50ff23b87f0dacecc94ccdac30e7a521cfdb9",
+  "value": "32000000000",
+  "version": 1,
+  "withdrawal_credentials": "002bb60c29a1ac0c719e2d9c00f7c00b84a4a33e91081b92ba6e5e31bf0b31ba"
+}

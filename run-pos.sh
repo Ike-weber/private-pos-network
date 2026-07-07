@@ -6,6 +6,12 @@ export USE_PRYSM_VERSION=v5.3.2
 # Allow Prysm to fall back to unverified binaries if signatures/checksums are unavailable
 export PRYSM_ALLOW_UNVERIFIED_BINARIES=1
 
+JWT_SECRET_PATH="${JWT_SECRET_PATH:-/home/harsh/.eth-pos/secrets/private-pos-jwt.hex}"
+if [ ! -f "$JWT_SECRET_PATH" ]; then
+  echo "ERROR: JWT secret not found at $JWT_SECRET_PATH"
+  exit 1
+fi
+
 # ── 0. DOWNLOAD GETH IF MISSING ─────────────────────────────────
 GETH_VERSION="1.17.4"
 GETH_COMMIT="36a7dc72"
@@ -73,15 +79,17 @@ pkill -9 -f validator || true
 sleep 3
 pgrep -f "geth|prysm.sh|beacon-chain|validator" && echo "STALE PROCESSES!" && exit 1
 
+NUM_NODES=9
+
 # ── 2. WIPE ALL DATA ────────────────────────────────────────────
-rm -rf beacon1/* beacon2/* beacon3/*
-rm -rf validator1/* validator2/* validator3/*
+for i in $(seq 1 $NUM_NODES); do
+  rm -rf beacon${i}/*
+  rm -rf validator${i}/*
+  rm -rf node${i}/geth
+  mkdir -p node${i}/geth
+done
 rm -f genesis.ssz genesis.json
 mkdir -p logs
-for node in node1 node2 node3; do
-  rm -rf $node/geth
-  mkdir -p $node/geth
-done
 
 # ── 3. SET GENESIS TIME ──────────────────────────────────────────
 GENESIS_TIME=$(( $(date +%s) + 180 ))
@@ -136,9 +144,13 @@ fi
 # ── 4b. GENERATE genesis.ssz ──────────────────────────────────────
 # Use the template that includes the real deposit contract bytecode at
 # 0x4242424242424242424242424242424242424242
+# Use node1's real deposit as the single bootstrap validator so the chain starts
+# producing blocks immediately. The other 8 validators are imported via keystores
+# and funded with on-chain deposits after startup.
 ./prysmctl-v5.3.2 testnet generate-genesis \
   --fork electra \
-  --num-validators 3 \
+  --num-validators 0 \
+  --deposit-json-file deposit_data_9/deposit_data_bootstrap.json \
   --genesis-time $GENESIS_TIME \
   --chain-config-file config.yaml \
   --geth-genesis-json-in genesis_with_deposit.json \
@@ -168,14 +180,14 @@ print('genesis.json fixed')
 "
 
 # ── 6. INIT GETH ─────────────────────────────────────────────────
-for node in node1 node2 node3; do
-  "$GETH_BIN" init --datadir ./$node genesis.json
-  echo "✓ $node initialized"
+for i in $(seq 1 $NUM_NODES); do
+  "$GETH_BIN" init --datadir ./node${i} genesis.json
+  echo "✓ node${i} initialized"
 done
 
-# ── 7. START ALL 9 PROCESSES NOW ─────────────────────────────────
+# ── 7. START ALL PROCESSES NOW ─────────────────────────────────
 # Use nohup so start-all.sh survives the run-pos.sh shell exiting.
-nohup ./start-all.sh 3 > logs/start-all.log 2>&1 &
+nohup JWT_SECRET_PATH="$JWT_SECRET_PATH" ./start-all.sh $NUM_NODES > logs/start-all.log 2>&1 &
 disown
 
 echo ""

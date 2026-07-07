@@ -1,0 +1,17 @@
+EOD — 07 Jul 2026
+
+- Built pos.sh manager script at /home/harsh/eth-pos/private-pos/pos.sh
+  Commands: setup | start | stop | restart | status | logs | deposit | clients | help
+- Tested live commands: help, clients, status, logs (beacon/validator/geth)
+- All 9 validators active_ongoing with effective_balance = 32 ETH
+- Beacon chain finalizing: head slot 170+, finalized epoch 26+
+- Geth block 142+, sync synced, 27 processes running
+
+Note for tomorrow:
+- ./pos.sh restart wipes data and starts from genesis (current behavior)
+- Need to add ./pos.sh resume to preserve datadirs and chain history
+- Shutdown today stops the devnet cleanly
+
+Files changed:
+- /home/harsh/eth-pos/private-pos/pos.sh (new)
+- /home/harsh/eth-pos/private-pos/send_deposits_debug.py (debug helper, can be removed)

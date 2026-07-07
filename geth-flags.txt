@@ -30,6 +30,16 @@ Geth gaps to implement:
   --rpc.evmtimeout 0          disable EVM timeout
   --debug                     expose debug APIs
 
+Implemented RPC security:
+  --http.addr 127.0.0.1       bind HTTP to localhost only
+  --ws.addr 127.0.0.1           bind WS to localhost only
+  --authrpc.addr 127.0.0.1      bind engine API to localhost only
+  --http.vhosts 'localhost'     restrict Host header (TLS handled by reverse proxy)
+  --http.corsdomain 'localhost'   restrict CORS origin
+  rpc-auth.sh generates self-signed TLS cert + API token
+  nginx-rpc.conf proxies TLS -> Geth HTTP, enforces client cert or API key
+  rate-limit via nginx limit_req
+
 Deposit transaction path:
   - deploy DepositContract.sol bytecode in genesis alloc
   - fund genesis accounts

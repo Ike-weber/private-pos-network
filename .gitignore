@@ -67,3 +67,7 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+rpc-cert.pem
+rpc-key.pem
+rpc-htpasswd
+rpc-users.txt

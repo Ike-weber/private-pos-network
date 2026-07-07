@@ -6,9 +6,23 @@ export PRYSM_ALLOW_UNVERIFIED_BINARIES=1
 PRYSM_VERSION="v5.3.2"
 BEACON="./beacon-chain-${PRYSM_VERSION}"
 VALIDATOR="./validator-${PRYSM_VERSION}"
-NUM_NODES=${1:-4}
-
+NUM_NODES=${1:-9}
+KEYSTORE_DIR="deposit_data_9"
+WALLET_PASSWORD_FILE="${KEYSTORE_DIR}/password.txt"
+JWT_SECRET_PATH="${JWT_SECRET_PATH:-/home/harsh/.eth-pos/secrets/private-pos-jwt.hex}"
 mkdir -p logs
+
+if [ ! -f "$JWT_SECRET_PATH" ]; then
+  echo "ERROR: JWT secret not found at $JWT_SECRET_PATH"
+  exit 1
+fi
+
+# Ensure password file exists for non-interactive keystore import
+if [ ! -f "$WALLET_PASSWORD_FILE" ]; then
+  echo "Creating wallet password file from default password"
+  echo -n 'password' > "$WALLET_PASSWORD_FILE"
+fi
+WALLET_PASSWORD=$(cat "$WALLET_PASSWORD_FILE")
 
 # Suggested fee recipients for each node
 FEE_RECIPIENTS=(
@@ -41,9 +55,9 @@ for i in $(seq 1 $NUM_NODES); do
   nohup ./geth \
     --datadir "node${i}" \
     --port $P2P_PORT \
-    --http --http.port $HTTP_PORT --http.api eth,net,web3,engine,admin,debug,txpool,clique --http.vhosts '*' --http.corsdomain '*' --http.addr 127.0.0.1 \
-    --ws --ws.port $WS_PORT --ws.api eth,net,web3,engine,admin,debug,txpool --ws.origins '*' \
-    --authrpc.addr 127.0.0.1 --authrpc.port $AUTH_PORT --authrpc.vhosts localhost --authrpc.jwtsecret jwt.hex \
+    --http --http.port $HTTP_PORT --http.api eth,net,web3,engine,admin,debug,txpool --http.vhosts 'localhost' --http.corsdomain 'localhost' --http.addr 127.0.0.1 \
+    --ws --ws.port $WS_PORT --ws.api eth,net,web3,engine,admin,debug,txpool --ws.origins 'localhost' --ws.addr 127.0.0.1 \
+    --authrpc.addr 127.0.0.1 --authrpc.port $AUTH_PORT --authrpc.vhosts localhost --authrpc.jwtsecret "$JWT_SECRET_PATH" \
     --metrics --metrics.addr 127.0.0.1 --metrics.port $METRICS_PORT \
     --syncmode full --gcmode archive --state.scheme path --snapshot \
     --networkid 12345 --ipcdisable \
@@ -72,7 +86,7 @@ done
 echo "Geth peered"
 
 # Start beacon1
-nohup $BEACON --datadir beacon1 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[0]} --execution-endpoint http://localhost:8561 --rpc-port 4000 --grpc-gateway-port 3500 --p2p-tcp-port 13000 --p2p-udp-port 12000 --p2p-host-ip $HOST_IP --bootstrap-node= >> logs/beacon1.log 2>&1 &
+nohup $BEACON --datadir beacon1 --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret "$JWT_SECRET_PATH" --suggested-fee-recipient ${FEE_RECIPIENTS[0]} --execution-endpoint http://localhost:8561 --rpc-port 4000 --grpc-gateway-port 3500 --p2p-tcp-port 13000 --p2p-udp-port 12000 --p2p-host-ip $HOST_IP --bootstrap-node= >> logs/beacon1.log 2>&1 &
 echo "Beacon1 started"
 
 # Wait for beacon1 API to be ready (retry up to 30s)
@@ -97,15 +111,44 @@ for i in $(seq 2 $NUM_NODES); do
   GATEWAY_PORT=$((3499 + i))
   TCP_PORT=$((12999 + i))
   UDP_PORT=$((11999 + i))
-  nohup $BEACON --datadir "beacon${i}" --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret jwt.hex --suggested-fee-recipient ${FEE_RECIPIENTS[$((i-1))]} --execution-endpoint http://localhost:${AUTH_PORT} --rpc-port ${RPC_PORT} --grpc-gateway-port ${GATEWAY_PORT} --p2p-tcp-port ${TCP_PORT} --p2p-udp-port ${UDP_PORT} --p2p-host-ip $HOST_IP --peer=/ip4/$HOST_IP/tcp/13000/p2p/$BEACON1_PEER >> "logs/beacon${i}.log" 2>&1 &
+  nohup $BEACON --datadir "beacon${i}" --min-sync-peers 0 --genesis-state genesis.ssz --interop-eth1data-votes --chain-config-file config.yaml --contract-deployment-block 0 --chain-id 12345 --accept-terms-of-use --jwt-secret "$JWT_SECRET_PATH" --suggested-fee-recipient ${FEE_RECIPIENTS[$((i-1))]} --execution-endpoint http://localhost:${AUTH_PORT} --rpc-port ${RPC_PORT} --grpc-gateway-port ${GATEWAY_PORT} --p2p-tcp-port ${TCP_PORT} --p2p-udp-port ${UDP_PORT} --p2p-host-ip $HOST_IP --peer=/ip4/$HOST_IP/tcp/13000/p2p/$BEACON1_PEER >> "logs/beacon${i}.log" 2>&1 &
 done
 echo "Beacon2..${NUM_NODES} started"
 sleep 10
 
-# Start validators
+# Import real keystores into Prysm wallets (one wallet per validator node)
+for i in $(seq 1 $NUM_NODES); do
+  WALLET_DIR="beacon${i}/validator/wallet"
+  KEYS_DIR="${KEYSTORE_DIR}/node${i}"
+  if [ ! -d "$KEYS_DIR" ]; then
+    echo "ERROR: missing keystore directory $KEYS_DIR"
+    exit 1
+  fi
+  rm -rf "$WALLET_DIR"
+  mkdir -p "$WALLET_DIR"
+  $VALIDATOR accounts import \
+    --keys-dir "$KEYS_DIR" \
+    --wallet-dir "$WALLET_DIR" \
+    --wallet-password-file "$WALLET_PASSWORD_FILE" \
+    --account-password-file "$WALLET_PASSWORD_FILE" \
+    --accept-terms-of-use \
+    >> "logs/validator${i}-import.log" 2>&1
+  echo "Imported node${i} keystore into $WALLET_DIR"
+done
+
+# Start validators using imported real keystores
 for i in $(seq 1 $NUM_NODES); do
   GATEWAY_PORT=$((3499 + i))
-  nohup ./validator-v5.3.2 --datadir "beacon${i}/validator" --accept-terms-of-use --chain-config-file config.yaml --interop-num-validators 1 --interop-start-index $((i-1)) --beacon-rest-api-provider http://localhost:${GATEWAY_PORT} >> "logs/validator${i}.log" 2>&1 &
+  DATADIR="beacon${i}/validator"
+  WALLET_DIR="${DATADIR}/wallet"
+  nohup $VALIDATOR \
+    --datadir "$DATADIR" \
+    --wallet-dir "$WALLET_DIR" \
+    --wallet-password-file "$WALLET_PASSWORD_FILE" \
+    --beacon-rest-api-provider http://localhost:${GATEWAY_PORT} \
+    --accept-terms-of-use \
+    --chain-config-file config.yaml \
+    >> "logs/validator${i}.log" 2>&1 &
 done
 
 echo "All started"
