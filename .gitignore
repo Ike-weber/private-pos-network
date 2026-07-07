@@ -71,3 +71,27 @@ rpc-cert.pem
 rpc-key.pem
 rpc-htpasswd
 rpc-users.txt
+
+# Keystores, secrets, and credentials
+keystore*/
+*keystore*/
+*wallet*/
+*.json.imported
+wallet-password.txt
+keystore-password.txt
+mnemonic*
+*.secret
+*secret*
+jwt*.hex
+jwt-secret*
+node-config.env
+
+# Chain data and logs
+node*/geth/
+node*/chaindata/
+node*/lightchaindata/
+node*/ethash/
+beacon*/
+validator*/
+logs/
+

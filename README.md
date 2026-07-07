@@ -32,10 +32,11 @@ A fully functional, local-only Ethereum Proof-of-Stake (PoS) devnet with up to 3
 - [Full Reset Procedure](#full-reset-procedure)
 - [Extending the Network](#extending-the-network)
 - [Known Limitations](#known-limitations)
-- [Single-Node Mode](#single-node-mode)
-- [Changelog](#changelog)
-- [License](#license)
-- [Contributors](#contributors)
+| [Single-Node Mode](#single-node-mode)
+| [Joining the Network](#joining-the-network)
+| [Changelog](#changelog)
+| [License](#license)
+| [Contributors](#contributors)
 
 ---
 
@@ -794,6 +795,41 @@ This starts:
 Useful when you only need one node producing blocks, e.g. for an overnight run or a single-machine test before scaling out.
 
 **Note:** Finality still requires 2/3 of validators online. With 9 total validators across the network, at least 6 must be running. Single-node mode is just for lightweight testing, not a complete distributed network.
+
+---
+
+## Joining the Network
+
+This repository is configured as a **9-validator private Ethereum PoS devnet**. By default, validators are split across multiple participants, each running their own Geth + Prysm beacon + Prysm validator. The **Mac Mini is the permanent bootnode** (node 1). All other participants connect to it.
+
+### How to get invited
+
+1. Ask the network owner for an assigned **node number** (2-9).
+2. The owner will give you:
+   - The **bootnode IP** (Mac Mini address).
+   - The **bootnode peer ID**.
+   - Your validator **keystore directory**.
+   - The shared **JWT secret** file.
+3. Follow the step-by-step guide in [`JOIN.md`](JOIN.md).
+
+### Quick start for participants
+
+```bash
+# 1. Install dependencies and binaries
+./download-binaries.sh
+
+# 2. Copy the example config and fill it in
+cp node-config.example.env node-config.env
+nano node-config.env
+
+# 3. Place your keystore and JWT secret in the repo folder
+#    (keystore/ and jwt-secret)
+
+# 4. Start your node
+./join-network.sh
+```
+
+See `JOIN.md` for full Windows (WSL), Mac, and Linux instructions, including troubleshooting and health checks.
 
 ---
 
