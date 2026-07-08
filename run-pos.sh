@@ -87,84 +87,106 @@ done
 GENESIS_TIME=$(( $(date +%s) + 180 ))
 echo "Genesis at: $GENESIS_TIME = $(date -d @$GENESIS_TIME)"
 
-# ── 4. PATCH DEPOSIT CONTRACT BYTECODE IN TEMPLATE ───────────────
-# prysmctl emits the deposit contract as init+runtime concatenated.
-# Geth expects only the runtime bytecode. Strip the init prefix from the
-# template so prysmctl generates a consistent genesis.json and genesis.ssz.
-echo "Patching deposit contract bytecode..."
+# ── 4. BUILD FINAL genesis.json FROM TEMPLATE ────────────────────
+# prysmctl uses the input execution genesis to compute the genesis state root
+# that goes into genesis.ssz. ANY change to genesis.json AFTER prysmctl runs
+# breaks EL↔CL alignment ("unknown finalized root", "el_offline", etc.).
+# So we prepare the FINAL genesis.json here, before generating genesis.ssz.
+echo "Preparing final genesis.json from template..."
 python3 << 'PYEOF'
-import json, sys
+import json, os, subprocess, sys
 
-RUNTIME_START = 0x137
-RUNTIME_LEN   = 0x17bd
-CONTRACT      = "4242424242424242424242424242424242424242"
+DEPOSIT_ADDR = '0x4242424242424242424242424242424242424242'
 
-for fname in ["genesis_with_deposit.json", "genesis.json"]:
-    try:
-        with open(fname, 'r') as f:
-            genesis = json.load(f)
-    except FileNotFoundError:
-        continue
+with open('genesis.json.working') as f:
+    g = json.load(f)
 
-    code_hex   = genesis['alloc'][CONTRACT]['code']
-    code_bytes = bytes.fromhex(code_hex[2:] if code_hex.startswith('0x') else code_hex)
+# Normalize address keys to lowercase (Geth requirement)
+alloc = {}
+for k, v in g.get('alloc', {}).items():
+    alloc[k.lower().replace('0x', '')] = v
+g['alloc'] = alloc
 
-    # Only patch if still contains init code (length > runtime-only)
-    if len(code_bytes) <= RUNTIME_LEN:
-        print(f"✓ {fname}: already runtime-only ({len(code_bytes)} bytes), skipping")
-        continue
-
-    runtime = code_bytes[RUNTIME_START : RUNTIME_START + RUNTIME_LEN]
-
-    if runtime[:4].hex() != '60806040':
-        print(f"ERROR: {fname}: unexpected runtime start {runtime[:4].hex()}", file=sys.stderr)
+# Ensure deposit contract has correct runtime bytecode from source
+if os.path.exists('DepositContract.sol'):
+    r = subprocess.run(
+        ['solc', '--combined-json', 'bin-runtime', 'DepositContract.sol'],
+        capture_output=True, text=True
+    )
+    if r.returncode == 0:
+        data = json.loads(r.stdout)
+        key = next((k for k in data.get('contracts', {}) if k.endswith(':DepositContract')), None)
+        if key:
+            bytecode = data['contracts'][key]['bin-runtime'].strip()
+            entry = alloc.get(DEPOSIT_ADDR.lower().replace('0x', ''), {})
+            entry.setdefault('balance', '0x0')
+            entry['code'] = '0x' + bytecode
+            alloc[DEPOSIT_ADDR.lower().replace('0x', '')] = entry
+            print(f'Injected DepositContract runtime bytecode ({len(bytecode)} hex chars)')
+        else:
+            print('ERROR: DepositContract not found in solc output', file=sys.stderr)
+            sys.exit(1)
+    else:
+        print('ERROR: solc failed:', r.stderr[:200], file=sys.stderr)
         sys.exit(1)
+else:
+    print('ERROR: DepositContract.sol not found', file=sys.stderr)
+    sys.exit(1)
 
-    genesis['alloc'][CONTRACT]['code'] = '0x' + runtime.hex()
+# Final config values
+c = g.setdefault('config', {})
+c['chainId'] = c.get('chainId', 12345)
+c['terminalTotalDifficulty'] = 0
+c['terminalTotalDifficultyPassed'] = True
+# Forks active from genesis; prysmctl will align these with GENESIS_TIME
+# but we keep them at 0 so they are active before the first block.
+c['shanghaiTime'] = 0
+c['cancunTime'] = 0
+c['pragueTime'] = 0
+c.setdefault('blobSchedule', {
+    'cancun': {'target': 3, 'max': 6, 'baseFeeUpdateFraction': 3338477},
+    'prague': {'target': 6, 'max': 9, 'baseFeeUpdateFraction': 5007716}
+})
 
-    with open(fname, 'w') as f:
-        json.dump(genesis, f, indent=2)
+# Set execution genesis timestamp to match beacon genesis time
+g['timestamp'] = hex(int(sys.argv[1])) if len(sys.argv) > 1 else '0x0'
 
-    print(f"✓ {fname}: patched to runtime-only ({len(runtime)} bytes)")
-PYEOF
+with open('genesis.json', 'w') as f:
+    json.dump(g, f, indent='\t')
+
+print(f'Final genesis.json written with timestamp={g["timestamp"]}')
+print(f'Deposit contract code present: {"code" in alloc[DEPOSIT_ADDR.lower().replace("0x", "")]}')
+PYEOF "$GENESIS_TIME"
 
 if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to patch deposit contract bytecode. Aborting."
+    echo "ERROR: Failed to prepare genesis.json. Aborting."
     exit 1
 fi
 
-# ── 4b. GENERATE genesis.ssz ──────────────────────────────────────
-# Use the template that includes the real deposit contract bytecode at
-# 0x4242424242424242424242424242424242424242
+# ── 4b. GENERATE genesis.ssz FROM FINAL genesis.json ──────────────
+# prysmctl reads genesis.json, computes the EL state root, and embeds it
+# in genesis.ssz. Do NOT modify genesis.json after this step.
 ./prysmctl-v5.3.2 testnet generate-genesis \
   --fork electra \
   --num-validators 3 \
   --genesis-time $GENESIS_TIME \
   --chain-config-file config.yaml \
-  --geth-genesis-json-in genesis_with_deposit.json \
+  --geth-genesis-json-in genesis.json \
   --geth-genesis-json-out genesis.json \
   --output-ssz genesis.ssz
 
-# ── 5. FIX genesis.json AFTER prysmctl ───────────────────────────
+# ── 5. VERIFY genesis.json WAS NOT CORRUPTED BY prysmctl ─────────
 python3 -c "
 import json
 g = json.load(open('genesis.json'))
 c = g.setdefault('config', {})
-c['terminalTotalDifficultyPassed'] = True
-c['terminalTotalDifficulty'] = 0
-c.setdefault('shanghaiTime', 0)
-c.setdefault('cancunTime', 0)
-c.setdefault('pragueTime', 0)
-c.setdefault('blobSchedule', {
-  'cancun': {'target': 3, 'max': 6, 'baseFeeUpdateFraction': 3338477},
-  'prague': {'target': 6, 'max': 9, 'baseFeeUpdateFraction': 5007716}
-})
+assert c.get('terminalTotalDifficultyPassed') == True, 'terminalTotalDifficultyPassed missing'
+assert 'code' in g.get('alloc', {}).get('4242424242424242424242424242424242424242', {}), 'deposit contract code missing'
 print('timestamp:', g.get('timestamp'))
 print('terminalTotalDifficultyPassed:', c.get('terminalTotalDifficultyPassed'))
 print('depositContractAddress:', c.get('depositContractAddress'))
-print('deposit contract code present:', 'code' in g.get('alloc', {}).get('4242424242424242424242424242424242424242', {}))
-json.dump(g, open('genesis.json', 'w'), indent=2)
-print('genesis.json fixed')
+print('deposit contract code present: True')
+print('genesis.json verified')
 "
 
 # ── 6. INIT GETH ─────────────────────────────────────────────────
